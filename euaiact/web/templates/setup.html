@@ -1,0 +1,14 @@
+{% extends "base.html" %}{% block title %}Set up{% endblock %}
+{% block content %}
+<h1>Set up the AI literacy programme</h1>
+<div class="panel" style="max-width:520px">
+{% if error %}<div class="notice bad">{{ error }}</div>{% endif %}
+<p class="small muted">Create the first administrator. You will complete a short onboarding on this app and its limits before managing the programme.</p>
+<form method="post">
+  <label>Organisation name</label><input type="text" name="org_name" required>
+  <label>Your name</label><input type="text" name="name" required>
+  <label>E-mail</label><input type="email" name="email" required>
+  <label>Password (min. 10 characters)</label><input type="password" name="password" minlength="10" required>
+  <p><button type="submit">Create administrator</button></p>
+</form></div>
+{% endblock %}

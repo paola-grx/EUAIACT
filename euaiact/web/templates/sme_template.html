@@ -1,0 +1,5 @@
+{% extends "base.html" %}{% block title %}{{ name }}{% endblock %}
+{% block content %}
+<p><a href="/sme">← SME kit</a> · <a href="?raw=1">Download Markdown</a></p>
+<div class="panel content-body">{{ text | md | safe }}</div>
+{% endblock %}

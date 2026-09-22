@@ -1,0 +1,30 @@
+{% extends "base.html" %}{% from "_quiz.html" import quiz_form %}{% block title %}{{ module.title }}{% endblock %}
+{% block content %}
+<h1>{{ version.title }}</h1>
+<p class="muted small">Version {{ version.version }}{% if version.version != module.current.version %} (current is v{{ module.current.version }}){% endif %} · published {{ version.published_at.strftime('%Y-%m-%d %H:%M') }} UTC by {{ version.published_by }} · SHA-256 <span class="mono">{{ version.sha256[:16] }}…</span></p>
+{% if edit and user.role == 'admin' %}
+<div class="panel">
+{% if error %}<div class="notice bad">{{ error }}</div>{% endif %}
+<form method="post" action="/content/{{ module.key }}">
+<label>Title</label><input type="text" name="title" value="{{ module.current.title }}" required>
+<label>Body (Markdown)</label><textarea class="code" name="body">{{ module.current.body_markdown }}</textarea>
+<label>Knowledge check (YAML list: question, options, answer = index of correct option, explain)</label><textarea class="code" name="quiz_yaml" style="min-height:180px">{{ quiz_yaml }}</textarea>
+<label>Change note</label><input type="text" name="change_note" required>
+<label class="check"><input type="checkbox" name="material_change" value="yes"> Material update: it changes what people need to know or do. Everyone who completed an earlier version is assigned re-training.</label>
+<p><button type="submit">Publish new version</button> <a class="button secondary" href="/content/{{ module.key }}">Cancel</a></p>
+</form></div>
+{% else %}
+{% if user.role == 'admin' %}<p><a class="button secondary" href="?edit=1">Edit (creates a new version)</a></p>{% endif %}
+<div class="panel content-body">{{ version.body_markdown | md | safe }}</div>
+<div class="panel"><h2 style="margin-top:0">Knowledge check ({{ version.quiz|length }} questions)</h2>
+<ol class="small">{% for q in version.quiz %}<li>{{ q.question }} <span class="muted">→ {{ q.options[q.answer] }}</span></li>{% endfor %}</ol></div>
+{% endif %}
+<h2>Version history</h2>
+<div class="table-wrap"><table>
+<tr><th>Version</th><th>Published</th><th>By</th><th>Material</th><th>Note</th></tr>
+{% for v in module.versions | reverse %}
+<tr><td><a href="?v={{ v.version }}">v{{ v.version }}</a></td><td>{{ v.published_at.strftime('%Y-%m-%d %H:%M') }}</td><td class="small">{{ v.published_by }}</td>
+<td>{% if v.material_change %}<span class="badge medium">yes</span>{% else %}no{% endif %}</td><td class="small">{{ v.change_note }}</td></tr>
+{% endfor %}
+</table></div>
+{% endblock %}

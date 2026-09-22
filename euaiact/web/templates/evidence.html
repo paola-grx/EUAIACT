@@ -1,0 +1,45 @@
+{% extends "base.html" %}{% block title %}Evidence register{% endblock %}
+{% block content %}
+<h1>Evidence register</h1>
+{% if chain.ok %}<div class="notice ok small">Integrity verified: {{ chain.entries }} entries, hash chain intact. Entries are append-only and cannot be edited or deleted; corrections are recorded as new entries.</div>
+{% else %}<div class="notice bad">Integrity check FAILED at entry #{{ chain.first_broken_seq }}: {{ chain.problem }}.</div>{% endif %}
+
+<form method="get" class="panel row" style="align-items:end">
+  <div><label>Type</label><select name="type"><option value="">All</option>{% for k, v in MEASURE_TYPES.items() %}<option value="{{ k }}" {% if filters.type == k %}selected{% endif %}>{{ v }}</option>{% endfor %}</select></div>
+  <div><label>Person</label><select name="person"><option value="">All</option>{% for p in people %}<option value="{{ p.id }}" {% if filters.person == p.id %}selected{% endif %}>{{ p.name }}</option>{% endfor %}</select></div>
+  <div><label>From</label><input type="date" name="date_from" value="{{ filters.date_from }}"></div>
+  <div><label>To</label><input type="date" name="date_to" value="{{ filters.date_to }}"></div>
+  <div><button type="submit" class="secondary">Filter</button></div>
+</form>
+<p><a class="button secondary" href="/evidence.csv?{{ query }}">Export CSV</a> <a class="button secondary" href="/evidence.pdf?{{ query }}">Export PDF</a>
+<span class="small muted">Exports for market surveillance authorities include the hash chain.</span></p>
+
+<div class="table-wrap"><table>
+<tr><th>#</th><th>Recorded (UTC)</th><th>Measure date</th><th>Type</th><th>Measure</th><th>Person</th><th>Content</th><th>Actor</th></tr>
+{% for e in entries %}
+<tr><td>{{ e.seq }}</td><td class="small">{{ e.recorded_at.strftime('%Y-%m-%d %H:%M:%S') }}</td><td class="small">{{ e.measure_date }}</td>
+<td><span class="badge">{{ MEASURE_TYPES[e.measure_type] }}</span></td>
+<td>{{ e.title }}{% if e.description %}<div class="small muted">{{ e.description }}</div>{% endif %}{% if e.details.attendees %}<div class="small muted">Attendees: {{ e.details.attendees | join(', ') }}</div>{% endif %}</td>
+<td class="small">{{ e.person_name }}</td><td class="small">{% if e.module_key %}{{ e.module_key }}{% if e.content_version %} v{{ e.content_version }}{% endif %}{% endif %}</td>
+<td class="small">{{ e.actor }}<div class="mono muted" title="{{ e.hash }}">{{ e.hash[:12] }}…</div></td></tr>
+{% else %}<tr><td colspan="8" class="muted">No entries.</td></tr>{% endfor %}
+</table></div>
+<p class="small muted">Showing up to 500 most recent matching entries; exports include all matching entries.</p>
+
+{% if user.role == 'admin' %}
+<h2 id="record">Record a measure</h2>
+<div class="panel"><p class="small muted">Record measures that happen outside the app: issuing the internal AI usage policy, awareness sessions, guidance documents, trainings delivered elsewhere.</p>
+<form method="post" action="/evidence">
+<div class="row">
+  <div><label>Type</label><select name="measure_type">{% for k in manual %}<option value="{{ k }}">{{ MEASURE_TYPES[k] }}</option>{% endfor %}</select></div>
+  <div><label>Date of the measure</label><input type="date" name="measure_date" required></div>
+  <div><label>Document version (optional)</label><input type="text" name="content_version" placeholder="e.g. Policy v2.1"></div>
+</div>
+<label>Title</label><input type="text" name="title" required placeholder="e.g. AI usage policy v2.1 issued to all staff">
+<label>Description</label><textarea name="description"></textarea>
+<label>Attendees / recipients (comma-separated, optional)</label><input type="text" name="attendees">
+<label>Reference (link or file location, optional)</label><input type="text" name="reference">
+<p><button type="submit">Add to register</button></p>
+</form></div>
+{% endif %}
+{% endblock %}

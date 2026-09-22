@@ -1,0 +1,11 @@
+{% extends "base.html" %}{% block title %}Log in{% endblock %}
+{% block content %}
+<h1>Log in</h1>
+<div class="panel" style="max-width:420px">
+{% if error %}<div class="notice bad">{{ error }}</div>{% endif %}
+<form method="post">
+  <label>E-mail</label><input type="email" name="email" required>
+  <label>Password</label><input type="password" name="password" required>
+  <p><button type="submit">Log in</button></p>
+</form></div>
+{% endblock %}

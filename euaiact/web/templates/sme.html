@@ -1,0 +1,20 @@
+{% extends "base.html" %}{% block title %}SME kit{% endblock %}
+{% block content %}
+<h1>SME kit: minimum viable Article 4 programme</h1>
+<div class="notice small">SME mode is <strong>{{ 'on' if org.sme_mode else 'off' }}</strong>. {% if user.role == 'admin' %}Change it in <a href="/settings">Settings</a>.{% endif %}
+In SME mode everyone gets the short <em>SME essentials</em> module; role modules are added only where a system requires them (high-risk use, generative AI, development).</div>
+<h2>Templates</h2>
+<div class="table-wrap"><table>
+{% for t in templates %}<tr><td><a href="/sme/templates/{{ t.stem }}">{{ t.stem.replace('-', ' ') | capitalize }}</a></td><td><a class="small" href="/sme/templates/{{ t.stem }}?raw=1">Download Markdown</a></td></tr>{% endfor %}
+</table></div>
+<h2>Checklist</h2>
+<ol class="panel">
+  <li>List every AI tool in <a href="/systems">AI systems</a>, including chatbots and copilots.</li>
+  <li>Add people and link them to the tools they use, with their role, in <a href="/people">People</a>.</li>
+  <li>Record a short needs assessment for each person.</li>
+  <li>Adapt the AI usage policy template and record it in the <a href="/evidence#record">evidence register</a>.</li>
+  <li>Share each person's personal learning link.</li>
+  <li>Hold one awareness session a year and record it.</li>
+  <li>Issue the Article 4 Measures Statement from the <a href="/">dashboard</a> once a year.</li>
+</ol>
+{% endblock %}

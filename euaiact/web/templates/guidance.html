@@ -1,0 +1,32 @@
+{% extends "base.html" %}{% block title %}Limits of automation{% endblock %}
+{% block content %}
+<h1>Guidance: limits of automation in this app</h1>
+<div class="panel content-body">
+<p>This app uses simple, transparent rules to help you run an Article 4 programme. Every automated output is a proposal that a person reviews. Here is what each feature can and cannot do.</p>
+<h2>Risk class suggestion</h2>
+<ul>{% for l in limits %}<li>{{ l }}</li>{% endfor %}</ul>
+<p>A suggested class stays marked <span class="badge medium">unconfirmed</span> until an administrator confirms it on the system page, and unconfirmed classes appear as gaps on the dashboard.</p>
+<h2>Tailored learning paths</h2>
+<ul>
+  <li>Paths are built from the recorded role(s), the linked AI systems and the needs assessment. Each module shows the reasons it was selected.</li>
+  <li>The rules cannot see how people actually work. If a path looks wrong, correct the inventory or the assessment rather than working around it.</li>
+  <li>Depth levels (foundation / standard / advanced) are guidance for the learner, not a grading of the person.</li>
+</ul>
+<h2>Knowledge checks</h2>
+<ul>
+  <li>Quizzes are for learning reinforcement only. Article 4 requires measures, not a guaranteed individual level, so there is no pass mark.</li>
+  <li>The evidence register records that a check was taken, never the score.</li>
+</ul>
+<h2>Coverage figures and re-training triggers</h2>
+<ul>
+  <li>Coverage shows who has current training measures. It measures activity, not competence.</li>
+  <li>Re-training is triggered by inventory changes, material content updates and the refresh cycle. It depends on the inventory being kept current.</li>
+</ul>
+<h2>Records and statements</h2>
+<ul>
+  <li>The AI Literacy Training Record and the Article 4 Measures Statement document measures taken. They are not certificates and do not attest to competence or legal compliance. The AI Act prescribes no AI literacy certificate.</li>
+</ul>
+<h2>Legal dates</h2>
+<ul><li>Dates come from a configuration file that maintainers must verify before each release. See <a href="/legal-dates">legal dates</a>.</li></ul>
+</div>
+{% endblock %}

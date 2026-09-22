@@ -1,0 +1,13 @@
+{% extends "base.html" %}{% block title %}Records and statements{% endblock %}
+{% block content %}
+<h1>Issued records and statements</h1>
+<div class="notice small">AI Literacy Training Records and Article 4 Measures Statements document measures taken to support AI literacy. They are not certificates and make no claim about competence or legal compliance: the AI Act prescribes no AI literacy certificate.</div>
+<div class="table-wrap"><table>
+<tr><th>Document ID</th><th>Type</th><th>Subject</th><th>Issued</th><th>By</th></tr>
+{% for d in docs %}
+<tr><td><a href="/documents/{{ d.doc_id }}.pdf" class="mono">{{ d.doc_id }}</a> · <a class="small" href="/verify/{{ d.doc_id }}">verify</a></td>
+<td>{{ 'Training record' if d.kind == 'training_record' else 'Measures statement' }}</td><td>{{ d.subject }}</td>
+<td>{{ d.issued_at.strftime('%Y-%m-%d %H:%M') }}</td><td class="small">{{ d.issued_by }}</td></tr>
+{% else %}<tr><td colspan="5" class="muted">None issued yet. Issue a training record from a person's page, or a measures statement from the dashboard.</td></tr>{% endfor %}
+</table></div>
+{% endblock %}

@@ -1,0 +1,89 @@
+# EU AI Act application dates used across the app.
+#
+# VERIFY BEFORE RELEASE: every entry carries `verified: false` until a named
+# person has checked it against the Official Journal (EUR-Lex) text of
+# Regulation (EU) 2024/1689 and its amending acts, including Regulation
+# (EU) 2026/1744 (Digital Omnibus). `python -m euaiact.cli check-legal-dates
+# --strict` exits non-zero while any entry is unverified, so it can gate a
+# release pipeline.
+#
+# To mark an entry verified, set `verified: true`, `verified_by` and
+# `verified_on` (ISO date), and cite the source in `source`.
+
+regulation: "Regulation (EU) 2024/1689 (AI Act)"
+amending_acts:
+  - id: "Regulation (EU) 2026/1744"
+    short_name: "Digital Omnibus"
+    in_force: 2026-07-27
+
+milestones:
+  - key: art5_prohibitions
+    label: "Prohibited AI practices (Art. 5)"
+    applies_from: 2025-02-02
+    articles: ["Art. 5"]
+    verified: false
+    source: "Art. 113(a) Regulation (EU) 2024/1689"
+
+  - key: art5_omnibus_prohibitions
+    label: "New prohibitions added by the Digital Omnibus (Art. 5)"
+    applies_from: 2026-12-02
+    articles: ["Art. 5"]
+    verified: false
+    source: "Regulation (EU) 2026/1744"
+
+  - key: art4_ai_literacy
+    label: "AI literacy (Art. 4)"
+    applies_from: 2025-02-02
+    articles: ["Art. 4"]
+    notes: "Amended wording applies since 27 Jul 2026: providers and deployers take measures to support AI literacy; no specific individual level must be guaranteed."
+    verified: false
+    source: "Art. 113(a) Regulation (EU) 2024/1689"
+
+  - key: art4_ai_literacy_amended
+    label: "AI literacy (Art. 4) - amended wording"
+    applies_from: 2026-07-27
+    articles: ["Art. 4"]
+    verified: false
+    source: "Regulation (EU) 2026/1744"
+
+  - key: gpai_obligations
+    label: "General-purpose AI model obligations"
+    applies_from: 2025-08-02
+    articles: ["Art. 53", "Art. 54", "Art. 55"]
+    verified: false
+    source: "Art. 113(b) Regulation (EU) 2024/1689"
+
+  - key: gpai_enforcement
+    label: "General-purpose AI obligations - full enforcement (Commission powers)"
+    applies_from: 2026-08-02
+    articles: ["Art. 101"]
+    verified: false
+    source: "Art. 113 Regulation (EU) 2024/1689"
+
+  - key: art50_transparency
+    label: "Transparency obligations (Art. 50)"
+    applies_from: 2026-08-02
+    articles: ["Art. 50"]
+    verified: false
+    source: "Art. 113 Regulation (EU) 2024/1689"
+
+  - key: art50_2_existing_systems
+    label: "Art. 50(2) marking of synthetic content - transition for systems already on the market"
+    applies_from: 2026-12-02
+    articles: ["Art. 50(2)"]
+    verified: false
+    source: "Regulation (EU) 2026/1744"
+
+  - key: high_risk_annex_iii
+    label: "High-risk AI systems listed in Annex III"
+    applies_from: 2027-12-02
+    articles: ["Art. 6(2)", "Annex III"]
+    verified: false
+    source: "Regulation (EU) 2026/1744"
+
+  - key: high_risk_annex_i
+    label: "High-risk AI systems under Annex I (product safety legislation)"
+    applies_from: 2028-08-02
+    articles: ["Art. 6(1)", "Annex I"]
+    verified: false
+    source: "Regulation (EU) 2026/1744"

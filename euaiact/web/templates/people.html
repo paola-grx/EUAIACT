@@ -1,0 +1,24 @@
+{% extends "base.html" %}{% block title %}People{% endblock %}
+{% block content %}
+<h1>People and roles</h1>
+<p class="muted small">Staff, contractors and others operating or using AI systems on the organisation's behalf.</p>
+<div class="table-wrap"><table>
+<tr><th>Name</th><th>Department</th><th>AI systems (role)</th><th>Assessment</th><th>Required modules</th></tr>
+{% for p, path, statuses in rows %}
+<tr{% if not p.active %} class="muted"{% endif %}><td><a href="/people/{{ p.id }}">{{ p.name }}</a>{% if not p.active %} (inactive){% endif %}<div class="small muted">{{ p.engagement }}</div></td>
+<td>{{ p.department }}</td>
+<td class="small">{% for a in p.assignments %}{{ a.system.name }} ({{ STAFF_ROLES[a.role] }}){% if not loop.last %}<br>{% endif %}{% else %}<span class="muted">none</span>{% endfor %}</td>
+<td>{% if p.latest_assessment %}<span class="badge">{{ path.depth }}</span>{% else %}<span class="badge medium">missing</span>{% endif %}</td>
+<td>{% for s in ['current','pending','overdue','expired'] %}{% set n = statuses | select('equalto', s) | list | length %}{% if n %}<span class="badge {{ s }}">{{ n }} {{ s }}</span> {% endif %}{% endfor %}</td></tr>
+{% else %}<tr><td colspan="5" class="muted">No people yet.</td></tr>{% endfor %}
+</table></div>
+{% if user.role == 'admin' %}
+<h2>Add person</h2>
+<div class="panel"><form method="post" action="/people"><div class="row">
+  <div><label>Name</label><input type="text" name="name" required></div>
+  <div><label>E-mail</label><input type="email" name="email"></div>
+  <div><label>Department</label><input type="text" name="department"></div>
+  <div><label>Engagement</label><select name="engagement"><option value="employee">Employee</option><option value="contractor">Contractor</option><option value="other">Other (acting on our behalf)</option></select></div>
+</div><p><button type="submit">Add</button></p></form></div>
+{% endif %}
+{% endblock %}
