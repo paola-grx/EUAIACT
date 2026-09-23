@@ -33,6 +33,8 @@ class Settings:
     legal_dates_file: Path
     production: bool = False
     smtp: SmtpSettings | None = None
+    # Demo instance: sample data on an empty database and a "no real data" banner.
+    demo: bool = False
 
     @property
     def https(self) -> bool:
@@ -79,6 +81,7 @@ def load_settings() -> Settings:
         legal_dates_file=Path(os.environ.get("EUAIACT_LEGAL_DATES", ROOT / "config" / "legal_dates.yaml")),
         production=os.environ.get("EUAIACT_ENV", "development") == "production",
         smtp=_smtp_from_env(),
+        demo=os.environ.get("EUAIACT_DEMO", "") == "1",
     )
     validate(settings)
     return settings

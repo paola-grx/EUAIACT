@@ -51,10 +51,11 @@ def test_healthz(client):
     assert r.status_code == 200 and r.json() == {"status": "ok"}
 
 
-def test_render_blueprint_is_consistent():
-    bp = yaml.safe_load((ROOT / "render.yaml").read_text())
+@pytest.mark.parametrize("blueprint", ["render.yaml", "render-free.yaml"])
+def test_render_blueprint_is_consistent(blueprint):
+    bp = yaml.safe_load((ROOT / blueprint).read_text())
     db_names = {d["name"] for d in bp["databases"]}
-    groups = {g["name"] for g in bp["envVarGroups"]}
+    groups = {g["name"] for g in bp.get("envVarGroups", [])}
     for svc in bp["services"]:
         assert svc["region"] == "frankfurt"
         assert Path(ROOT / svc["dockerfilePath"]).exists()
@@ -66,3 +67,39 @@ def test_render_blueprint_is_consistent():
             if "fromGroup" in e:
                 assert e["fromGroup"] in groups
     assert next(s for s in bp["services"] if s["type"] == "web")["healthCheckPath"] == "/healthz"
+
+
+def test_demo_seed_populates_once(session):
+    from euaiact import dashboard, demo, evidence
+    from euaiact.models import AISystem, Person
+
+    assert demo.seed_demo(session) is True
+    assert session.query(Person).count() == len(demo.PEOPLE)
+    assert session.query(AISystem).count() == len(demo.SYSTEMS)
+    d = dashboard.build_dashboard(session)
+    assert d.overdue and 0 < d.staff_percent < 100
+    assert evidence.verify_chain(session).ok
+    assert demo.seed_demo(session) is False
+
+
+def test_demo_banner_and_seed_on_startup(settings):
+    from dataclasses import replace
+
+    from conftest import CsrfClient
+    from euaiact.web.app import create_app
+
+    with CsrfClient(create_app(replace(settings, demo=True)), base_url="https://testserver") as c:
+        c.post("/setup", data={"org_name": "Demo", "name": "Ada", "email": "a@x.eu", "password": "0123456789"})
+        c.post("/onboarding/complete", data={"confirm": "yes"})
+        page = c.get("/").text
+        assert "Demo instance" in page and "CV Screening Assistant" in page
+
+
+def test_free_blueprint_is_a_labelled_demo():
+    bp = yaml.safe_load((ROOT / "render-free.yaml").read_text())
+    assert all(s["plan"] == "free" for s in bp["services"] + bp["databases"])
+    web = bp["services"][0]
+    env = {e["key"]: e.get("value") for e in web["envVars"]}
+    assert env["EUAIACT_DEMO"] == "1"
+    paid = yaml.safe_load((ROOT / "render.yaml").read_text())
+    assert not {s["name"] for s in bp["services"]} & {s["name"] for s in paid["services"]}
