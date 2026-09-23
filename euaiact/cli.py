@@ -1,6 +1,7 @@
 """Command line: python -m euaiact.cli <command>."""
 
 import argparse
+import os
 import sys
 
 from .db import init_db, make_engine, make_sessionmaker
@@ -13,7 +14,8 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="cmd", required=True)
     serve = sub.add_parser("serve", help="run the web app")
     serve.add_argument("--host", default="127.0.0.1")
-    serve.add_argument("--port", type=int, default=8000)
+    serve.add_argument("--port", type=int, default=int(os.environ.get("PORT", 8000)),
+                       help="default: $PORT if set (hosting platforms), else 8000")
     serve.add_argument("--proxy", action="store_true",
                        help="behind a TLS-terminating reverse proxy: trust X-Forwarded-* from --forwarded-allow-ips")
     serve.add_argument("--forwarded-allow-ips", default="127.0.0.1")

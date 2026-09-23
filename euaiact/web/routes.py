@@ -5,7 +5,7 @@ from datetime import date
 import yaml
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
 from .. import classification, content, dashboard, documents, evidence, inventory, mailer, refresh
@@ -83,6 +83,14 @@ def get_or_404(session: Session, model, ident):
     if obj is None:
         raise HTTPException(404)
     return obj
+
+
+# Health check (for the hosting platform) ------------------------------------
+
+@router.get("/healthz")
+def healthz(session: Session = Depends(db)):
+    session.execute(text("SELECT 1"))
+    return {"status": "ok"}
 
 
 # Setup & auth -------------------------------------------------------------

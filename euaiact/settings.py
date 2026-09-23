@@ -55,11 +55,26 @@ def _smtp_from_env() -> SmtpSettings | None:
     )
 
 
+def normalise_database_url(url: str) -> str:
+    """Use the psycopg 3 driver for plain postgres:// URLs, as handed out by hosting providers."""
+    for prefix in ("postgres://", "postgresql://"):
+        if url.startswith(prefix):
+            return "postgresql+psycopg://" + url[len(prefix):]
+    return url
+
+
+def _base_url() -> str:
+    # RENDER_EXTERNAL_URL is set by Render on web services (https://<name>.onrender.com).
+    url = os.environ.get("EUAIACT_BASE_URL") or os.environ.get("RENDER_EXTERNAL_URL") or "http://localhost:8000"
+    return url.rstrip("/")
+
+
 def load_settings() -> Settings:
     settings = Settings(
-        database_url=os.environ.get("EUAIACT_DATABASE_URL", f"sqlite:///{ROOT / 'var' / 'euaiact.db'}"),
+        database_url=normalise_database_url(
+            os.environ.get("EUAIACT_DATABASE_URL", f"sqlite:///{ROOT / 'var' / 'euaiact.db'}")),
         secret_key=os.environ.get("EUAIACT_SECRET_KEY", DEV_SECRET),
-        base_url=os.environ.get("EUAIACT_BASE_URL", "http://localhost:8000").rstrip("/"),
+        base_url=_base_url(),
         content_dir=Path(os.environ.get("EUAIACT_CONTENT_DIR", ROOT / "content")),
         legal_dates_file=Path(os.environ.get("EUAIACT_LEGAL_DATES", ROOT / "config" / "legal_dates.yaml")),
         production=os.environ.get("EUAIACT_ENV", "development") == "production",

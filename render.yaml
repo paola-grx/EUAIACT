@@ -1,0 +1,73 @@
+# Render Blueprint: web app + PostgreSQL + daily refresh/reminder job, all in Frankfurt (EU).
+# In Render: New > Blueprint > connect this repository. See docs/deploy-render.md.
+#
+# Plans below are paid entry-level plans. Free plans are not suitable: free web services
+# sleep when idle and free PostgreSQL databases expire, which would lose the evidence register.
+
+envVarGroups:
+  - name: euaiact-shared
+    envVars:
+      - key: EUAIACT_ENV
+        value: production
+      # Public https:// address of the web service (e.g. https://euaiact.onrender.com or your
+      # own domain). Used in QR codes, learning links and reminder e-mails. Render asks for it
+      # when you create the Blueprint; you can change it later.
+      - key: EUAIACT_BASE_URL
+        sync: false
+      # Optional e-mail delivery. Leave empty to keep reminders queued in the app.
+      - key: EUAIACT_SMTP_HOST
+        sync: false
+      - key: EUAIACT_SMTP_PORT
+        value: "587"
+      - key: EUAIACT_SMTP_SECURITY
+        value: starttls
+      - key: EUAIACT_SMTP_USERNAME
+        sync: false
+      - key: EUAIACT_SMTP_PASSWORD
+        sync: false
+      - key: EUAIACT_SMTP_FROM
+        sync: false
+
+services:
+  - type: web
+    name: euaiact
+    runtime: docker
+    plan: starter
+    region: frankfurt
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /healthz
+    envVars:
+      - fromGroup: euaiact-shared
+      - key: EUAIACT_SECRET_KEY
+        generateValue: true
+      - key: EUAIACT_DATABASE_URL
+        fromDatabase:
+          name: euaiact-db
+          property: connectionString
+
+  - type: cron
+    name: euaiact-refresh
+    runtime: docker
+    plan: starter
+    region: frankfurt
+    dockerfilePath: ./Dockerfile
+    # 06:00 UTC daily: create refresh assignments, queue reminders and e-mail them.
+    schedule: "0 6 * * *"
+    dockerCommand: python -m euaiact.cli refresh
+    envVars:
+      - fromGroup: euaiact-shared
+      # The job never signs cookies, but production mode requires a strong secret.
+      - key: EUAIACT_SECRET_KEY
+        generateValue: true
+      - key: EUAIACT_DATABASE_URL
+        fromDatabase:
+          name: euaiact-db
+          property: connectionString
+
+databases:
+  - name: euaiact-db
+    databaseName: euaiact
+    user: euaiact
+    plan: basic-256mb
+    region: frankfurt
+    postgresMajorVersion: "16"
