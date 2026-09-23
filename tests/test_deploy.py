@@ -103,3 +103,27 @@ def test_free_blueprint_is_a_labelled_demo():
     assert env["EUAIACT_DEMO"] == "1"
     paid = yaml.safe_load((ROOT / "render.yaml").read_text())
     assert not {s["name"] for s in bp["services"]} & {s["name"] for s in paid["services"]}
+
+
+def test_base_url_from_hugging_face_space(monkeypatch):
+    for var in ("EUAIACT_BASE_URL", "RENDER_EXTERNAL_URL"):
+        monkeypatch.delenv(var, raising=False)
+    monkeypatch.setenv("SPACE_HOST", "paola-euaiact-demo.hf.space")
+    assert settings.load_settings().base_url == "https://paola-euaiact-demo.hf.space"
+
+
+def test_demo_generates_secret_when_unset(monkeypatch):
+    monkeypatch.delenv("EUAIACT_SECRET_KEY", raising=False)
+    monkeypatch.setenv("EUAIACT_DEMO", "1")
+    first, second = settings.load_settings().secret_key, settings.load_settings().secret_key
+    assert first != settings.DEV_SECRET and len(first) >= 32 and first != second
+    monkeypatch.setenv("EUAIACT_DEMO", "")
+    assert settings.load_settings().secret_key == settings.DEV_SECRET
+
+
+def test_hugging_face_space_files():
+    space = ROOT / "deploy" / "huggingface"
+    front = yaml.safe_load((space / "README.md").read_text().split("---")[1])
+    assert front["sdk"] == "docker" and front["app_port"] == 7860
+    dockerfile = (space / "Dockerfile").read_text()
+    assert "EUAIACT_DEMO=1" in dockerfile and "PORT=7860" in dockerfile and "USER user" in dockerfile
