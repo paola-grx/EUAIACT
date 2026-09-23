@@ -29,7 +29,7 @@
 {% if user.role == 'admin' %}
 <h2 id="record">Record a measure</h2>
 <div class="panel"><p class="small muted">Record measures that happen outside the app: issuing the internal AI usage policy, awareness sessions, guidance documents, trainings delivered elsewhere.</p>
-<form method="post" action="/evidence">
+<form method="post" action="/evidence">{{ csrf(request) }}
 <div class="row">
   <div><label>Type</label><select name="measure_type">{% for k in manual %}<option value="{{ k }}">{{ MEASURE_TYPES[k] }}</option>{% endfor %}</select></div>
   <div><label>Date of the measure</label><input type="date" name="measure_date" required></div>

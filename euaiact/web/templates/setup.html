@@ -4,7 +4,7 @@
 <div class="panel" style="max-width:520px">
 {% if error %}<div class="notice bad">{{ error }}</div>{% endif %}
 <p class="small muted">Create the first administrator. You will complete a short onboarding on this app and its limits before managing the programme.</p>
-<form method="post">
+<form method="post">{{ csrf(request) }}
   <label>Organisation name</label><input type="text" name="org_name" required>
   <label>Your name</label><input type="text" name="name" required>
   <label>E-mail</label><input type="email" name="email" required>

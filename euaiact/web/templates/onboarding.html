@@ -1,4 +1,4 @@
-{% extends "base.html" %}{% from "_quiz.html" import quiz_form %}{% block title %}Onboarding{% endblock %}
+{% extends "base.html" %}{% from "_quiz.html" import quiz_form with context %}{% block title %}Onboarding{% endblock %}
 {% block content %}
 <h1>{{ version.title }}</h1>
 {% if done %}<div class="notice ok">You have completed the current onboarding (v{{ user.onboarding_content_version }}).</div>
@@ -6,7 +6,7 @@
 <div class="panel content-body">{{ version.body_markdown | md | safe }}</div>
 <div class="panel"><h2 style="margin-top:0">Knowledge check</h2>{{ quiz_form('/onboarding/quiz', version.quiz, results) }}</div>
 {% if not done %}
-<div class="panel"><form method="post" action="/onboarding/complete">
+<div class="panel"><form method="post" action="/onboarding/complete">{{ csrf(request) }}
   <label class="check"><input type="checkbox" name="confirm" value="yes" required> I have read this onboarding, including the limits of the app's automated features.</label>
   <p><button type="submit">Complete onboarding</button></p>
 </form></div>

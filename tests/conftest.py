@@ -1,7 +1,10 @@
+import os
+import re
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import create_engine, text
 
 from euaiact import content
 from euaiact.db import init_db, make_engine, make_sessionmaker
@@ -9,9 +12,25 @@ from euaiact.settings import ROOT, Settings
 from euaiact.web.app import create_app
 
 
+# Set to run the suite against PostgreSQL, e.g.
+# EUAIACT_TEST_DATABASE_URL=postgresql+psycopg://euaiact:euaiact@localhost/euaiact_test
+PG_URL = os.environ.get("EUAIACT_TEST_DATABASE_URL", "")
+
+
+def fresh_database_url(tmp_path: Path) -> str:
+    if not PG_URL:
+        return f"sqlite:///{tmp_path / 'test.db'}"
+    engine = create_engine(PG_URL)
+    with engine.begin() as conn:
+        conn.execute(text("DROP SCHEMA public CASCADE"))
+        conn.execute(text("CREATE SCHEMA public"))
+    engine.dispose()
+    return PG_URL
+
+
 @pytest.fixture
-def session():
-    engine = make_engine("sqlite:///:memory:")
+def session(tmp_path):
+    engine = make_engine(fresh_database_url(tmp_path) if PG_URL else "sqlite:///:memory:")
     init_db(engine)
     with make_sessionmaker(engine)() as s:
         content.sync_from_disk(s, ROOT / "content")
@@ -22,7 +41,7 @@ def session():
 @pytest.fixture
 def settings(tmp_path: Path) -> Settings:
     return Settings(
-        database_url=f"sqlite:///{tmp_path / 'test.db'}",
+        database_url=fresh_database_url(tmp_path),
         secret_key="test",
         base_url="https://ai-literacy.example",
         content_dir=ROOT / "content",
@@ -30,9 +49,26 @@ def settings(tmp_path: Path) -> Settings:
     )
 
 
+CSRF_RE = re.compile(r'name="csrf_token" value="([^"]+)"')
+
+
+class CsrfClient(TestClient):
+    """Test client that adds the session's CSRF token to form posts, like a browser would."""
+
+    def request(self, method, url, *args, csrf=True, **kwargs):
+        if csrf and method.upper() in {"POST", "PUT", "PATCH", "DELETE"}:
+            page = super().request("GET", "/login", follow_redirects=True)
+            token = CSRF_RE.search(page.text).group(1)
+            kwargs["data"] = {**(kwargs.get("data") or {}), "csrf_token": token}
+        return super().request(method, url, *args, **kwargs)
+
+    def post_without_csrf(self, url, **kwargs):
+        return self.request("POST", url, csrf=False, **kwargs)
+
+
 @pytest.fixture
 def client(settings):
-    with TestClient(create_app(settings)) as c:
+    with CsrfClient(create_app(settings), base_url="https://testserver") as c:
         yield c
 
 

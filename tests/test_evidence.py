@@ -43,13 +43,20 @@ def test_database_trigger_blocks_raw_sql(session):
     with pytest.raises(IntegrityError):
         session.execute(text("DELETE FROM evidence"))
     session.rollback()
+    if session.get_bind().dialect.name == "postgresql":
+        with pytest.raises(IntegrityError):
+            session.execute(text("TRUNCATE evidence"))
+        session.rollback()
 
 
 def test_tampering_detected(session):
     evidence.record(session, "guidance_doc", "Prompting guide", "admin")
     evidence.record(session, "awareness_session", "Lunch & learn", "admin")
     session.commit()
-    session.execute(text("DROP TRIGGER evidence_no_update"))
+    if session.get_bind().dialect.name == "postgresql":
+        session.execute(text("ALTER TABLE evidence DISABLE TRIGGER USER"))
+    else:
+        session.execute(text("DROP TRIGGER evidence_no_update"))
     session.execute(text("UPDATE evidence SET title = 'forged' WHERE seq = 1"))
     session.commit()
     session.expire_all()
@@ -63,3 +70,27 @@ def test_csv_export(session):
     row = [r for r in rows if r["measure_type"] == "awareness_session"][0]
     assert row["measure_label"] == "Awareness session held"
     assert row["recorded_at_utc"].endswith("Z") and len(row["hash"]) == 64
+
+
+def test_concurrent_writers_keep_chain_intact(session):
+    """Parallel transactions must not fork the chain (PostgreSQL advisory lock)."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    from euaiact.db import make_sessionmaker
+
+    engine = session.get_bind()
+    if engine.dialect.name != "postgresql":
+        pytest.skip("SQLite serialises writers itself; this exercises the PostgreSQL lock")
+    session.commit()
+    Session = make_sessionmaker(engine)
+
+    def writer(i):
+        for j in range(10):
+            with Session() as s:
+                evidence.record(s, "other_measure", f"w{i}-{j}", "t")
+                s.commit()
+
+    with ThreadPoolExecutor(8) as pool:
+        list(pool.map(writer, range(8)))
+    report = evidence.verify_chain(session)
+    assert report.ok and report.entries >= 80

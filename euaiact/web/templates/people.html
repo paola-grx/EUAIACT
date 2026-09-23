@@ -14,7 +14,7 @@
 </table></div>
 {% if user.role == 'admin' %}
 <h2>Add person</h2>
-<div class="panel"><form method="post" action="/people"><div class="row">
+<div class="panel"><form method="post" action="/people">{{ csrf(request) }}<div class="row">
   <div><label>Name</label><input type="text" name="name" required></div>
   <div><label>E-mail</label><input type="email" name="email"></div>
   <div><label>Department</label><input type="text" name="department"></div>

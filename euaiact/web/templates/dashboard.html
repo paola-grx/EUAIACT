@@ -37,7 +37,7 @@
 </table></div>
 
 <h2>Organisation statement</h2>
-<div class="panel"><form method="post" action="/documents/statement" class="row" style="align-items:end">
+<div class="panel"><form method="post" action="/documents/statement" class="row" style="align-items:end">{{ csrf(request) }}
   <div><label>Period start (optional)</label><input type="date" name="period_start"></div>
   <div><button type="submit">Issue Article 4 Measures Statement (PDF)</button></div>
 </form><p class="small muted">Documents measures taken to support AI literacy. It does not certify competence or compliance.</p></div>

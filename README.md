@@ -33,26 +33,97 @@ update to it. In-app guidance (`/guidance/automation-limits`) explains the limit
 automated risk class suggestion, the learning path rules and the coverage figures. A
 suggested risk class stays "unconfirmed" until a person confirms it.
 
-## Quick start
+## Quick start (development)
 
 ```bash
 pip install -e ".[dev]"
 python -m euaiact.cli serve            # http://127.0.0.1:8000; first visit creates the admin
-pytest -q
+pytest -q                              # SQLite
+EUAIACT_TEST_DATABASE_URL=postgresql+psycopg://user:pass@localhost/euaiact_test pytest -q   # PostgreSQL
 ```
-
-Environment variables: `EUAIACT_DATABASE_URL` (default `sqlite:///var/euaiact.db`),
-`EUAIACT_SECRET_KEY` (**set in production**), `EUAIACT_BASE_URL` (used in QR codes and
-learning links), `EUAIACT_CONTENT_DIR`, `EUAIACT_LEGAL_DATES`.
 
 ### CLI
 
 ```bash
-python -m euaiact.cli refresh                      # run daily (cron): refresh assignments + reminders
+python -m euaiact.cli refresh                      # run daily: refresh assignments, queue and e-mail reminders
+python -m euaiact.cli send-reminders               # e-mail queued reminders only
 python -m euaiact.cli import-content [--material]  # publish edited content/modules/*.md as new versions
 python -m euaiact.cli create-user EMAIL NAME --role admin|reviewer
 python -m euaiact.cli check-legal-dates --strict   # release gate: exit 1 while dates are unverified
 ```
+
+## Production deployment
+
+```bash
+cp .env.example .env      # fill in secrets, base URL and SMTP
+docker compose up -d      # app + PostgreSQL 16 + daily refresh/reminder job
+```
+
+Put a TLS-terminating reverse proxy (Caddy, nginx, Traefik or a cloud load balancer) in
+front of `127.0.0.1:8000`. The container runs with `--proxy`, so it trusts
+`X-Forwarded-Proto`/`X-Forwarded-For` from the proxy.
+
+With `EUAIACT_ENV=production` the app **refuses to start** unless:
+
+- `EUAIACT_SECRET_KEY` is a random value of at least 32 characters,
+- `EUAIACT_BASE_URL` is `https://...` (session cookies are then `Secure`, and HSTS is sent),
+- the database is PostgreSQL (`postgresql+psycopg://...`, PostgreSQL 14 or later),
+- SMTP, if configured, uses `starttls` or `ssl`.
+
+| Variable | Purpose |
+|---|---|
+| `EUAIACT_ENV` | `production` enables the checks above |
+| `EUAIACT_DATABASE_URL` | SQLAlchemy URL; default `sqlite:///var/euaiact.db` (development only) |
+| `EUAIACT_SECRET_KEY` | Signs session cookies |
+| `EUAIACT_BASE_URL` | Public URL, used in QR codes, learning links and e-mails |
+| `EUAIACT_SMTP_HOST`, `_PORT`, `_SECURITY`, `_USERNAME`, `_PASSWORD`, `_FROM` | E-mail delivery (optional) |
+| `EUAIACT_CONTENT_DIR`, `EUAIACT_LEGAL_DATES` | Override content and legal dates locations |
+
+**PostgreSQL specifics:** `init_db` creates triggers that reject `UPDATE`, `DELETE` and
+`TRUNCATE` on `evidence`, `issued_documents` and `content_versions`. Writers to the evidence
+register take a transaction-level advisory lock, so concurrent requests cannot fork the hash
+chain. For stronger separation, run the app with a database role that does not own the tables,
+so it cannot disable the triggers.
+
+**Schema changes:** there are no migrations yet. The schema is created on first start, so a
+database created by an older version must be recreated (or migrated by hand).
+
+### E-mail reminders
+
+`refresh` queues a reminder when a training item is due within the lead time
+(default 30 days) or is overdue, then e-mails queued reminders if SMTP is configured. Each
+e-mail contains the person's personal learning link. Delivery status is shown under
+**Settings > Refresh cycle and reminders**:
+
+- Failures are kept with the error message and retried on the next run (up to 5 attempts).
+- Reminders for training completed in the meantime are cancelled instead of sent.
+- People without an e-mail address are listed so you can add one.
+- An expired learning link is reissued automatically before a reminder is sent.
+
+Admins can also e-mail a person their learning link from the person page.
+
+## Security
+
+- **CSRF:** every form carries a per-session token, and every state-changing request
+  without a valid token is rejected with 403.
+- **Sessions:** HttpOnly, SameSite=Lax, and Secure on HTTPS. Sessions last 8 hours and are
+  rotated at login to prevent session fixation.
+- **Login throttling:** 5 failed attempts per e-mail and IP within 15 minutes block further
+  attempts. The limit is kept in memory per process, so add a proxy-level rate limit for
+  multi-worker setups.
+- **Headers:** a strict Content-Security-Policy (no scripts), `X-Frame-Options: DENY`,
+  `nosniff`, `Referrer-Policy: no-referrer` (learning links never leak via Referer), and
+  `Cache-Control: no-store` on pages.
+- **Personal learning links** (staff need no account):
+  - 256-bit random tokens that expire after a configurable number of days (default 180;
+    0 = never).
+  - Admins can reissue a link, which revokes the old one immediately.
+  - Links stop working when a person is marked inactive.
+  - Completions made through a link are recorded in the evidence register as
+    *self-attested*, so the register never overstates them. For training that needs
+    stronger assurance, admins can record completion themselves ("Record completion",
+    with the delivery method).
+- Passwords are hashed with PBKDF2-SHA256 (390,000 iterations).
 
 ## Legal dates: verify before release
 
@@ -84,9 +155,9 @@ Official Journal:
   module to everyone who completed an earlier version. The refresh cycle re-assigns modules
   once the interval has passed.
 - **Immutability**: evidence entries, issued documents and content versions are protected
-  by an ORM guard and SQLite `BEFORE UPDATE/DELETE` triggers. The hash chain detects any
+  by an ORM guard and database triggers (SQLite and PostgreSQL). The hash chain detects any
   tampering at database level (`verify_chain`, shown on the dashboard and in exports).
 - **Staff access**: staff need no account. Each person has a personal learning link. Admins
   can also record training delivered elsewhere (classroom, external e-learning).
-- **Reminders** are queued in an outbox table (`reminders`) for an e-mail or chat
-  integration to deliver.
+- **Reminders** are queued in an outbox table (`reminders`) and e-mailed over SMTP when
+  it is configured.

@@ -1,9 +1,12 @@
 """Inventory operations that must also write evidence and fire re-training triggers."""
 
+from datetime import timedelta
+
 from sqlalchemy.orm import Session
 
 from . import evidence
-from .models import STAFF_ROLES, AISystem, Assessment, Assignment, Person
+from .db import get_org
+from .models import STAFF_ROLES, AISystem, Assessment, Assignment, Person, new_learn_token, utcnow
 from .refresh import sync_requirements, trigger_assignment_change
 
 
@@ -81,3 +84,29 @@ def record_assessment(session: Session, person: Person, actor: str, **fields) ->
                                             "ai_experience": assessment.ai_experience})
     sync_requirements(session, person, actor)
     return assessment
+
+
+def learn_link_expires(org, person: Person):
+    """Expiry of the person's learning link, or None if links never expire."""
+    if not org.learn_link_valid_days:
+        return None
+    return person.learn_token_issued_at + timedelta(days=org.learn_link_valid_days)
+
+
+def learn_link_valid(org, person: Person) -> bool:
+    expires = learn_link_expires(org, person)
+    return person.active and (expires is None or utcnow() < expires)
+
+
+def regenerate_learn_link(session: Session, person: Person, actor: str, reason: str) -> None:
+    """Issue a new personal learning link; the old one stops working immediately."""
+    person.learn_token = new_learn_token()
+    person.learn_token_issued_at = utcnow()
+    session.flush()
+    evidence.record(session, "inventory_change", f"Personal learning link reissued for {person.name}", actor,
+                    person=person, details={"reason": reason})
+
+
+def ensure_learn_link(session: Session, person: Person, actor: str) -> None:
+    if not learn_link_valid(get_org(session), person):
+        regenerate_learn_link(session, person, actor, "expired")

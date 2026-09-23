@@ -13,12 +13,13 @@ import json
 from dataclasses import dataclass
 from datetime import date, datetime
 
-from sqlalchemy import event, func, select
+from sqlalchemy import event, func, select, text
 from sqlalchemy.orm import Session
 
 from .models import MEASURE_TYPES, EvidenceEntry, IssuedDocument, utcnow
 
 GENESIS_HASH = "0" * 64
+_CHAIN_LOCK = 0x4A4C4954  # arbitrary advisory lock id for the evidence chain
 
 
 class ImmutableRecordError(Exception):
@@ -77,6 +78,9 @@ def record(
     if measure_type not in MEASURE_TYPES:
         raise ValueError(f"unknown measure type: {measure_type}")
     session.flush()
+    if session.get_bind().dialect.name == "postgresql":
+        # Serialise writers so two transactions cannot both extend the chain from the same head.
+        session.execute(text("SELECT pg_advisory_xact_lock(:k)"), {"k": _CHAIN_LOCK})
     last = head(session)
     recorded_at = utcnow()
     entry = EvidenceEntry(

@@ -15,7 +15,7 @@
   {% endfor %}
 {% elif quiz %}
   <p class="small muted">Optional knowledge check to help you remember the key points. It is not a test you can fail.</p>
-  <form method="post" action="{{ action }}">
+  <form method="post" action="{{ action }}">{{ csrf(request) }}
   {% for q in quiz %}{% set qi = loop.index0 %}
   <fieldset><legend><strong>{{ q.question }}</strong></legend>
     {% for opt in q.options %}

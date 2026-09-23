@@ -84,7 +84,7 @@ def test_manual_measure_and_filters(admin):
 
 
 def test_sme_mode_and_templates(admin):
-    admin.post("/settings", data={"org_name": "Tiny Ltd", "refresh_interval_months": 12, "reminder_lead_days": 30,
+    admin.post("/settings", data={"org_name": "Tiny Ltd", "refresh_interval_months": 12, "reminder_lead_days": 30, "learn_link_valid_days": 180,
                                   "sme_mode": "yes"})
     admin.post("/people", data={"name": "Solo"})
     assert "SME essentials" in admin.get("/people/1").text

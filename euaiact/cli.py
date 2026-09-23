@@ -5,7 +5,7 @@ import sys
 
 from .db import init_db, make_engine, make_sessionmaker
 from .legal_dates import load_milestones, unverified
-from .settings import load_settings
+from .settings import ConfigError, load_settings
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -14,7 +14,11 @@ def main(argv: list[str] | None = None) -> int:
     serve = sub.add_parser("serve", help="run the web app")
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=8000)
-    sub.add_parser("refresh", help="run the refresh cycle (schedule daily)")
+    serve.add_argument("--proxy", action="store_true",
+                       help="behind a TLS-terminating reverse proxy: trust X-Forwarded-* from --forwarded-allow-ips")
+    serve.add_argument("--forwarded-allow-ips", default="127.0.0.1")
+    sub.add_parser("refresh", help="run the refresh cycle and e-mail reminders (schedule daily)")
+    sub.add_parser("send-reminders", help="e-mail queued reminders (needs EUAIACT_SMTP_*)")
     check = sub.add_parser("check-legal-dates", help="list legal dates that still need verification")
     check.add_argument("--strict", action="store_true", help="exit 1 if any date is unverified (release gate)")
     imp = sub.add_parser("import-content", help="import changed content/modules/*.md as new versions")
@@ -24,14 +28,19 @@ def main(argv: list[str] | None = None) -> int:
     user.add_argument("name")
     user.add_argument("--role", choices=["admin", "reviewer"], default="admin")
     args = parser.parse_args(argv)
-    settings = load_settings()
+    try:
+        settings = load_settings()
+    except ConfigError as exc:
+        print(exc, file=sys.stderr)
+        return 2
 
     if args.cmd == "serve":
         import uvicorn
 
         from .web.app import create_app
 
-        uvicorn.run(create_app(settings), host=args.host, port=args.port)
+        uvicorn.run(create_app(settings), host=args.host, port=args.port, proxy_headers=args.proxy,
+                    forwarded_allow_ips=args.forwarded_allow_ips if args.proxy else None)
         return 0
 
     if args.cmd == "check-legal-dates":
@@ -53,7 +62,17 @@ def main(argv: list[str] | None = None) -> int:
             from .refresh import run_refresh_cycle
 
             stats = run_refresh_cycle(session, actor="scheduler")
+            session.commit()
             print(stats)
+            if settings.smtp is None:
+                print("E-mail not configured (EUAIACT_SMTP_HOST): reminders stay queued.")
+            else:
+                return _send(session, settings)
+        elif args.cmd == "send-reminders":
+            if settings.smtp is None:
+                print("E-mail not configured: set EUAIACT_SMTP_HOST and EUAIACT_SMTP_FROM.", file=sys.stderr)
+                return 1
+            return _send(session, settings)
         elif args.cmd == "import-content":
             from .content import sync_from_disk
 
@@ -74,6 +93,17 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Created {args.role} {args.email}; they must complete the app onboarding at first login.")
         session.commit()
     return 0
+
+
+def _send(session, settings) -> int:
+    from .mailer import SmtpSender, deliver_reminders
+
+    report = deliver_reminders(session, SmtpSender(settings.smtp), settings.smtp.sender, settings.base_url)
+    print(f"e-mail: {report.sent} sent, {report.failed} failed, {report.skipped_no_email} without address, "
+          f"{report.cancelled} cancelled")
+    for error in report.errors:
+        print("  ", error, file=sys.stderr)
+    return 1 if report.failed else 0
 
 
 if __name__ == "__main__":

@@ -9,11 +9,11 @@
 <div class="table-wrap"><table>
 <tr><th>Person</th><th>Role</th><th></th></tr>
 {% for a in system.assignments %}<tr><td><a href="/people/{{ a.person.id }}">{{ a.person.name }}</a></td><td>{{ STAFF_ROLES[a.role] }}</td>
-<td>{% if user.role == 'admin' %}<form class="inline" method="post" action="/assignments/{{ a.id }}/delete"><input type="hidden" name="back" value="/systems/{{ system.id }}"><button class="link" type="submit">Remove</button></form>{% endif %}</td></tr>
+<td>{% if user.role == 'admin' %}<form class="inline" method="post" action="/assignments/{{ a.id }}/delete">{{ csrf(request) }}<input type="hidden" name="back" value="/systems/{{ system.id }}"><button class="link" type="submit">Remove</button></form>{% endif %}</td></tr>
 {% else %}<tr><td colspan="3" class="muted">Nobody linked yet.</td></tr>{% endfor %}
 </table></div>
 {% if user.role == 'admin' and people %}
-<form method="post" action="/systems/{{ system.id }}/assign" class="row panel" style="align-items:end;margin-top:10px">
+<form method="post" action="/systems/{{ system.id }}/assign" class="row panel" style="align-items:end;margin-top:10px">{{ csrf(request) }}
   <div><label>Person</label><select name="person_id">{% for p in people %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}</select></div>
   <div><label>Role</label><select name="role">{% for k, v in STAFF_ROLES.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></div>
   <div><button type="submit">Link person</button></div>
@@ -22,7 +22,7 @@
 
 {% if user.role == 'admin' %}
 <h2>Edit</h2>
-<div class="panel"><form method="post" action="/systems/{{ system.id }}">
+<div class="panel"><form method="post" action="/systems/{{ system.id }}">{{ csrf(request) }}
 <div class="row">
   <div><label>Name</label><input type="text" name="name" value="{{ system.name }}" required></div>
   <div><label>Vendor</label><input type="text" name="vendor" value="{{ system.vendor }}"></div>

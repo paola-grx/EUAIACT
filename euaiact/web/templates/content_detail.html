@@ -1,11 +1,11 @@
-{% extends "base.html" %}{% from "_quiz.html" import quiz_form %}{% block title %}{{ module.title }}{% endblock %}
+{% extends "base.html" %}{% from "_quiz.html" import quiz_form with context %}{% block title %}{{ module.title }}{% endblock %}
 {% block content %}
 <h1>{{ version.title }}</h1>
 <p class="muted small">Version {{ version.version }}{% if version.version != module.current.version %} (current is v{{ module.current.version }}){% endif %} · published {{ version.published_at.strftime('%Y-%m-%d %H:%M') }} UTC by {{ version.published_by }} · SHA-256 <span class="mono">{{ version.sha256[:16] }}…</span></p>
 {% if edit and user.role == 'admin' %}
 <div class="panel">
 {% if error %}<div class="notice bad">{{ error }}</div>{% endif %}
-<form method="post" action="/content/{{ module.key }}">
+<form method="post" action="/content/{{ module.key }}">{{ csrf(request) }}
 <label>Title</label><input type="text" name="title" value="{{ module.current.title }}" required>
 <label>Body (Markdown)</label><textarea class="code" name="body">{{ module.current.body_markdown }}</textarea>
 <label>Knowledge check (YAML list: question, options, answer = index of correct option, explain)</label><textarea class="code" name="quiz_yaml" style="min-height:180px">{{ quiz_yaml }}</textarea>

@@ -15,7 +15,7 @@
     <a href="/content">Content</a><a href="/evidence">Evidence register</a><a href="/documents">Records</a>
     <a href="/sme">SME kit</a><a href="/settings">Settings</a><a href="/guidance/automation-limits">Guidance</a>
   </nav>
-  <form method="post" action="/logout"><span class="muted small">{{ user.name }} ({{ APP_USER_ROLES[user.role] }})</span>
+  <form method="post" action="/logout">{{ csrf(request) }}<span class="muted small">{{ user.name }} ({{ APP_USER_ROLES[user.role] }})</span>
     <button class="link" type="submit">Log out</button></form>
   {% endif %}
 </div></header>

@@ -8,7 +8,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from .. import classification, content, dashboard, documents, evidence, inventory, refresh
+from .. import classification, content, dashboard, documents, evidence, inventory, mailer, refresh
 from ..assessment import APP_ONBOARDING, build_learning_path
 from ..auth import check_password, hash_password
 from ..db import get_org
@@ -27,8 +27,9 @@ from ..models import (
     utcnow,
 )
 from .app import ONBOARDING_EXEMPT, NeedsLogin, NeedsOnboarding
+from .security import CSRF_FIELD, csrf_protect
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(csrf_protect)])
 
 # Measures an admin can record by hand (the rest are written by the app).
 MANUAL_MEASURES = ["policy_issued", "awareness_session", "guidance_doc", "training_completed", "other_measure"]
@@ -107,7 +108,7 @@ def setup(request: Request, session: Session = Depends(db), org_name: str = Form
     evidence.record(session, "settings_changed", f"Programme set up for {org_name}", actor(user),
                     details={"first_admin": user.email})
     session.commit()
-    request.session["uid"] = user.id
+    _start_session(request, user)
     return redirect("/onboarding")
 
 
@@ -120,11 +121,25 @@ def login_form(request: Request, session: Session = Depends(db)):
 
 @router.post("/login")
 def login(request: Request, session: Session = Depends(db), email: str = Form(...), password: str = Form(...)):
-    user = session.scalars(select(AppUser).where(AppUser.email == email.strip().lower())).first()
+    email = email.strip().lower()
+    ip = request.client.host if request.client else ""
+    throttle = request.app.state.login_throttle
+    if throttle.blocked(email, ip):
+        return render(request, "login.html", 429, user=None,
+                      error="Too many failed attempts. Wait 15 minutes and try again.")
+    user = session.scalars(select(AppUser).where(AppUser.email == email)).first()
     if user is None or not check_password(password, user.password_hash):
+        throttle.fail(email, ip)
         return render(request, "login.html", 400, user=None, error="Unknown e-mail or wrong password.")
-    request.session["uid"] = user.id
+    throttle.reset(email, ip)
+    _start_session(request, user)
     return redirect("/")
+
+
+def _start_session(request: Request, user: AppUser) -> None:
+    # Fresh session (and CSRF token) on every login to prevent session fixation.
+    request.session.clear()
+    request.session["uid"] = user.id
 
 
 @router.post("/logout")
@@ -223,7 +238,11 @@ def person_detail(request: Request, pid: int, session: Session = Depends(db), us
     systems = session.scalars(select(AISystem).order_by(AISystem.name)).all()
     learn_url = f"{request.app.state.settings.base_url}/learn/{person.learn_token}"
     return render(request, "person.html", user=user, person=person, path=path, items=items, history=history,
-                  docs=docs, systems=systems, modules=modules, learn_url=learn_url, today=today)
+                  docs=docs, systems=systems, modules=modules, learn_url=learn_url, today=today,
+                  link_expires=inventory.learn_link_expires(org, person),
+                  link_valid=inventory.learn_link_valid(org, person),
+                  smtp_enabled=request.app.state.settings.smtp is not None,
+                  link_status=request.query_params.get("link", ""))
 
 
 @router.post("/people/{pid}/assessment")
@@ -293,6 +312,32 @@ def person_active(pid: int, session: Session = Depends(db), user: AppUser = Depe
                     actor(user), person=person)
     session.commit()
     return redirect(f"/people/{pid}")
+
+
+@router.post("/people/{pid}/learn-link")
+def person_learn_link(request: Request, pid: int, session: Session = Depends(db), user: AppUser = Depends(admin_user),
+                      action: str = Form(...)):
+    person = get_or_404(session, Person, pid)
+    settings = request.app.state.settings
+    if action == "regenerate":
+        inventory.regenerate_learn_link(session, person, actor(user), "reissued by administrator")
+        session.commit()
+        return redirect(f"/people/{pid}?link=reissued")
+    if action == "email":
+        if settings.smtp is None or not person.email:
+            raise HTTPException(400, "E-mail is not configured or this person has no e-mail address")
+        inventory.ensure_learn_link(session, person, actor(user))
+        try:
+            mailer.SmtpSender(settings.smtp).send(
+                mailer.learn_link_message(person, get_org(session).org_name, settings.smtp.sender, settings.base_url))
+        except (OSError, mailer.smtplib.SMTPException) as exc:
+            session.rollback()
+            return redirect(f"/people/{pid}?link=error&detail={type(exc).__name__}")
+        evidence.record(session, "inventory_change", f"Personal learning link e-mailed to {person.name}", actor(user),
+                        person=person)
+        session.commit()
+        return redirect(f"/people/{pid}?link=sent")
+    raise HTTPException(400, "Unknown action")
 
 
 @router.post("/people/{pid}/record")
@@ -407,10 +452,17 @@ def content_publish(request: Request, key: str, session: Session = Depends(db), 
 
 # Learner (personal link, no account) ---------------------------------------
 
+class LinkExpired(HTTPException):
+    def __init__(self):
+        super().__init__(410, "This personal learning link has expired. Ask your AI literacy coordinator for a new one.")
+
+
 def _learner(session: Session, token: str) -> Person:
     person = session.scalars(select(Person).where(Person.learn_token == token, Person.active.is_(True))).first()
     if person is None:
         raise HTTPException(404)
+    if not inventory.learn_link_valid(get_org(session), person):
+        raise LinkExpired()
     return person
 
 
@@ -443,7 +495,7 @@ async def learn_quiz(request: Request, token: str, key: str, session: Session = 
     module = content.get_module(session, key)
     if module is None:
         raise HTTPException(404)
-    form = dict(await request.form())
+    form = {k: v for k, v in (await request.form()).items() if k != CSRF_FIELD}
     results = content.score_quiz(module.current.quiz, form)
     session.add(QuizAttempt(person_id=person.id, module_key=key, content_version=module.current.version,
                             answers=form, correct=sum(r["correct"] for r in results), total=len(results)))
@@ -464,7 +516,8 @@ def learn_complete(token: str, key: str, session: Session = Depends(db), confirm
     if module is None or req is None:
         raise HTTPException(404)
     if confirm == "yes" and req.completed_at is None:
-        refresh.complete_requirement(session, req, module.current.version, person.name)
+        refresh.complete_requirement(session, req, module.current.version, person.name,
+                                     method="self-attested via personal learning link")
         session.commit()
     return redirect(f"/learn/{token}")
 
@@ -578,23 +631,37 @@ def verify(request: Request, doc_id: str, session: Session = Depends(db)):
 
 # Settings, refresh, SME ----------------------------------------------------
 
-@router.get("/settings")
-def settings_form(request: Request, session: Session = Depends(db), user: AppUser = Depends(current_user)):
+def _settings_page(request: Request, session: Session, user: AppUser, **extra):
     users = session.scalars(select(AppUser).order_by(AppUser.name)).all()
     reminders = session.scalars(select(Reminder).order_by(Reminder.created_at.desc()).limit(50)).all()
-    return render(request, "settings.html", user=user, org=get_org(session), users=users, reminders=reminders,
-                  people={p.id: p for p in session.scalars(select(Person))}, stats=None)
+    ctx = {"stats": None, "delivery": None, "error": None, **extra}
+    return render(request, "settings.html", ctx.pop("status_code", 200), user=user, org=get_org(session),
+                  users=users, reminders=reminders, smtp=request.app.state.settings.smtp, **ctx)
+
+
+def _deliver(request: Request, session: Session) -> mailer.DeliveryReport | None:
+    settings = request.app.state.settings
+    if settings.smtp is None:
+        return None
+    return mailer.deliver_reminders(session, mailer.SmtpSender(settings.smtp), settings.smtp.sender, settings.base_url)
+
+
+@router.get("/settings")
+def settings_form(request: Request, session: Session = Depends(db), user: AppUser = Depends(current_user)):
+    return _settings_page(request, session, user)
 
 
 @router.post("/settings")
 def settings_save(session: Session = Depends(db), user: AppUser = Depends(admin_user), org_name: str = Form(...),
                   refresh_interval_months: int = Form(...), reminder_lead_days: int = Form(...),
-                  sme_mode: str = Form("")):
-    if not 1 <= refresh_interval_months <= 60 or not 0 <= reminder_lead_days <= 180:
+                  learn_link_valid_days: int = Form(...), sme_mode: str = Form("")):
+    if (not 1 <= refresh_interval_months <= 60 or not 0 <= reminder_lead_days <= 180
+            or not 0 <= learn_link_valid_days <= 730):
         raise HTTPException(400, "Out of range")
     org = get_org(session)
     new = {"org_name": org_name.strip(), "refresh_interval_months": refresh_interval_months,
-           "reminder_lead_days": reminder_lead_days, "sme_mode": sme_mode == "yes"}
+           "reminder_lead_days": reminder_lead_days, "learn_link_valid_days": learn_link_valid_days,
+           "sme_mode": sme_mode == "yes"}
     changes = {k: v for k, v in new.items() if getattr(org, k) != v}
     if changes:
         for k, v in changes.items():
@@ -612,10 +679,14 @@ def settings_save(session: Session = Depends(db), user: AppUser = Depends(admin_
 def refresh_run(request: Request, session: Session = Depends(db), user: AppUser = Depends(admin_user)):
     stats = refresh.run_refresh_cycle(session, actor(user))
     session.commit()
-    users = session.scalars(select(AppUser).order_by(AppUser.name)).all()
-    reminders = session.scalars(select(Reminder).order_by(Reminder.created_at.desc()).limit(50)).all()
-    return render(request, "settings.html", user=user, org=get_org(session), users=users, reminders=reminders,
-                  people={p.id: p for p in session.scalars(select(Person))}, stats=stats)
+    return _settings_page(request, session, user, stats=stats, delivery=_deliver(request, session))
+
+
+@router.post("/reminders/send")
+def reminders_send(request: Request, session: Session = Depends(db), user: AppUser = Depends(admin_user)):
+    if request.app.state.settings.smtp is None:
+        raise HTTPException(400, "E-mail delivery is not configured (EUAIACT_SMTP_HOST)")
+    return _settings_page(request, session, user, delivery=_deliver(request, session))
 
 
 @router.post("/users")
@@ -623,6 +694,8 @@ def users_add(request: Request, session: Session = Depends(db), user: AppUser = 
               name: str = Form(...), email: str = Form(...), role: str = Form(...), password: str = Form(...)):
     if role not in ("admin", "reviewer") or len(password) < 10:
         raise HTTPException(400, "Invalid role or password shorter than 10 characters")
+    if session.scalars(select(AppUser).where(AppUser.email == email.strip().lower())).first():
+        return _settings_page(request, session, user, status_code=400, error=f"{email} already has an account.")
     session.add(AppUser(name=name.strip(), email=email.strip().lower(), role=role, password_hash=hash_password(password)))
     evidence.record(session, "settings_changed", f"App {role} account created for {name.strip()}", actor(user),
                     details={"email": email.strip().lower(), "role": role, "onboarding_required": True})

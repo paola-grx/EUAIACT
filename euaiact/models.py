@@ -22,6 +22,10 @@ def utcnow() -> datetime:
     return datetime.now(timezone.utc).replace(microsecond=0, tzinfo=None)
 
 
+def new_learn_token() -> str:
+    return secrets.token_urlsafe(32)
+
+
 class Base(DeclarativeBase):
     pass
 
@@ -88,6 +92,8 @@ class OrgSettings(Base):
     refresh_interval_months: Mapped[int] = mapped_column(Integer, default=12)
     reminder_lead_days: Mapped[int] = mapped_column(Integer, default=30)
     sme_mode: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Personal learning links expire after this many days (0 = never) and can be regenerated.
+    learn_link_valid_days: Mapped[int] = mapped_column(Integer, default=180)
 
 
 class AppUser(Base):
@@ -100,7 +106,7 @@ class AppUser(Base):
     name: Mapped[str] = mapped_column(String(200))
     role: Mapped[str] = mapped_column(String(20), default="reviewer")
     password_hash: Mapped[str] = mapped_column(String(300))
-    onboarding_completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    onboarding_completed_at: Mapped[datetime | None] = mapped_column(DateTime())
     onboarding_content_version: Mapped[int | None] = mapped_column(Integer)
     # Staff record used to track this user's own literacy path, if any.
     person_id: Mapped[int | None] = mapped_column(ForeignKey("people.id"))
@@ -120,8 +126,9 @@ class Person(Base):
     engagement: Mapped[str] = mapped_column(String(20), default="employee")  # employee | contractor | other
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     # Secret for the person's personal learning link (/learn/<token>); staff need no app account.
-    learn_token: Mapped[str] = mapped_column(String(64), unique=True, default=lambda: secrets.token_urlsafe(24))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    learn_token: Mapped[str] = mapped_column(String(64), unique=True, default=lambda: new_learn_token())
+    learn_token_issued_at: Mapped[datetime] = mapped_column(DateTime(), default=utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(), default=utcnow)
 
     assignments: Mapped[list["Assignment"]] = relationship(back_populates="person", cascade="all, delete-orphan")
     assessments: Mapped[list["Assessment"]] = relationship(
@@ -147,7 +154,7 @@ class AISystem(Base):
     generative: Mapped[bool] = mapped_column(Boolean, default=False)
     # Free-text list of affected groups, e.g. ["customers", "job candidates"].
     affected_persons: Mapped[list] = mapped_column(JSON, default=list)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(), default=utcnow)
 
     assignments: Mapped[list["Assignment"]] = relationship(back_populates="system", cascade="all, delete-orphan")
 
@@ -162,7 +169,7 @@ class Assignment(Base):
     person_id: Mapped[int] = mapped_column(ForeignKey("people.id"))
     system_id: Mapped[int] = mapped_column(ForeignKey("ai_systems.id"))
     role: Mapped[str] = mapped_column(String(30))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(), default=utcnow)
 
     person: Mapped[Person] = relationship(back_populates="assignments")
     system: Mapped[AISystem] = relationship(back_populates="assignments")
@@ -180,7 +187,7 @@ class Assessment(Base):
     education: Mapped[str] = mapped_column(String(300), default="")
     prior_training: Mapped[str] = mapped_column(Text, default="")
     context_notes: Mapped[str] = mapped_column(Text, default="")
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(), default=utcnow)
     created_by: Mapped[str] = mapped_column(String(200), default="")
 
     person: Mapped[Person] = relationship(back_populates="assessments")
@@ -219,7 +226,7 @@ class ContentVersion(Base):
     sha256: Mapped[str] = mapped_column(String(64))
     material_change: Mapped[bool] = mapped_column(Boolean, default=False)
     change_note: Mapped[str] = mapped_column(Text, default="")
-    published_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    published_at: Mapped[datetime] = mapped_column(DateTime(), default=utcnow)
     published_by: Mapped[str] = mapped_column(String(200), default="system")
 
     module: Mapped[ContentModule] = relationship(back_populates="versions")
@@ -240,9 +247,9 @@ class Requirement(Base):
     reason: Mapped[str] = mapped_column(Text, default="")
     trigger: Mapped[str] = mapped_column(String(30), default="initial")
     # initial | periodic | new_system | role_change | content_update
-    assigned_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    assigned_at: Mapped[datetime] = mapped_column(DateTime(), default=utcnow)
     due_on: Mapped[date] = mapped_column(Date)
-    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime())
     completed_version: Mapped[int | None] = mapped_column(Integer)
     superseded: Mapped[bool] = mapped_column(Boolean, default=False)
 
@@ -264,7 +271,7 @@ class QuizAttempt(Base):
     answers: Mapped[dict] = mapped_column(JSON, default=dict)
     correct: Mapped[int] = mapped_column(Integer)
     total: Mapped[int] = mapped_column(Integer)
-    taken_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    taken_at: Mapped[datetime] = mapped_column(DateTime(), default=utcnow)
 
 
 class Reminder(Base):
@@ -276,8 +283,15 @@ class Reminder(Base):
     person_id: Mapped[int] = mapped_column(ForeignKey("people.id"))
     requirement_id: Mapped[int] = mapped_column(ForeignKey("requirements.id"))
     kind: Mapped[str] = mapped_column(String(20))  # due_soon | overdue
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(), default=utcnow)
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime())
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    last_error: Mapped[str] = mapped_column(Text, default="")
+    # Set when the reminder no longer needs sending (training completed or no longer required).
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime())
+
+    person: Mapped[Person] = relationship()
+    requirement: Mapped[Requirement] = relationship()
 
 
 # Evidence ------------------------------------------------------------------
@@ -293,7 +307,7 @@ class EvidenceEntry(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     seq: Mapped[int] = mapped_column(Integer, unique=True)
-    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    recorded_at: Mapped[datetime] = mapped_column(DateTime())
     measure_type: Mapped[str] = mapped_column(String(40))
     title: Mapped[str] = mapped_column(String(300))
     description: Mapped[str] = mapped_column(Text, default="")
@@ -319,7 +333,7 @@ class IssuedDocument(Base):
     kind: Mapped[str] = mapped_column(String(30))  # training_record | measures_statement
     person_id: Mapped[int | None] = mapped_column(Integer)
     subject: Mapped[str] = mapped_column(String(300))
-    issued_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    issued_at: Mapped[datetime] = mapped_column(DateTime(), default=utcnow)
     issued_by: Mapped[str] = mapped_column(String(200))
     snapshot: Mapped[dict] = mapped_column(JSON)
     snapshot_sha256: Mapped[str] = mapped_column(String(64))
