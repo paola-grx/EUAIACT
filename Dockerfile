@@ -12,7 +12,9 @@ COPY config ./config
 
 RUN useradd --system --uid 10001 app
 USER app
+ENV PORT=8000
 EXPOSE 8000
 
-# TLS is terminated by the reverse proxy in front of the container.
-CMD ["python", "-m", "euaiact.cli", "serve", "--host", "0.0.0.0", "--port", "8000", "--proxy", "--forwarded-allow-ips", "*"]
+# TLS is terminated by the reverse proxy / platform in front of the container.
+# The port comes from $PORT (hosting platforms such as Render set it).
+CMD ["python", "-m", "euaiact.cli", "serve", "--host", "0.0.0.0", "--proxy", "--forwarded-allow-ips", "*"]

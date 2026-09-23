@@ -54,6 +54,11 @@ python -m euaiact.cli check-legal-dates --strict   # release gate: exit 1 while 
 
 ## Production deployment
 
+**Render (managed hosting):** `render.yaml` sets up the web app, PostgreSQL and the daily
+job in Render's Frankfurt region. See [docs/deploy-render.md](docs/deploy-render.md).
+
+**Your own server (Docker Compose):**
+
 ```bash
 cp .env.example .env      # fill in secrets, base URL and SMTP
 docker compose up -d      # app + PostgreSQL 16 + daily refresh/reminder job
@@ -73,9 +78,10 @@ With `EUAIACT_ENV=production` the app **refuses to start** unless:
 | Variable | Purpose |
 |---|---|
 | `EUAIACT_ENV` | `production` enables the checks above |
-| `EUAIACT_DATABASE_URL` | SQLAlchemy URL; default `sqlite:///var/euaiact.db` (development only) |
+| `EUAIACT_DATABASE_URL` | Database URL; plain `postgres://` / `postgresql://` URLs are accepted; default `sqlite:///var/euaiact.db` (development only) |
 | `EUAIACT_SECRET_KEY` | Signs session cookies |
-| `EUAIACT_BASE_URL` | Public URL, used in QR codes, learning links and e-mails |
+| `EUAIACT_BASE_URL` | Public URL, used in QR codes, learning links and e-mails (falls back to Render's `RENDER_EXTERNAL_URL`) |
+| `PORT` | Port to listen on (set by hosting platforms; default 8000) |
 | `EUAIACT_SMTP_HOST`, `_PORT`, `_SECURITY`, `_USERNAME`, `_PASSWORD`, `_FROM` | E-mail delivery (optional) |
 | `EUAIACT_CONTENT_DIR`, `EUAIACT_LEGAL_DATES` | Override content and legal dates locations |
 
