@@ -12,6 +12,37 @@ Check the current prices on Render's pricing page before you create anything. Do
 free plans: free web services go to sleep when idle, and free databases are deleted after a
 trial period, which would lose your evidence register.
 
+## Free demo (try it first)
+
+`render-free.yaml` creates a **free** demo: the web app plus a free PostgreSQL database, with
+fictional sample data (`EUAIACT_DEMO=1`) and a "demo, no real data" banner. It has no
+scheduled job and needs no settings.
+
+1. Sign in at render.com with your GitHub account.
+2. **New > Blueprint**, select `paola-grx/EUAIACT`, branch `main`, and set **Blueprint Path**
+   to `render-free.yaml`.
+3. Click **Apply** and wait for the first build (a few minutes).
+4. Open the address of `euaiact-demo` (e.g. `https://euaiact-demo.onrender.com`), create
+   the administrator, and complete the onboarding. The dashboard, people, AI systems and
+   evidence register already contain sample data.
+
+If your Render screen has no Blueprint Path field, create the two parts by hand:
+**New > Postgres** (Free, Frankfurt), then **New > Web Service** from the repository
+(Docker, Free, Frankfurt, health check path `/healthz`) with these environment variables:
+`EUAIACT_ENV=production`, `EUAIACT_DEMO=1`, a random `EUAIACT_SECRET_KEY` of at least 32
+characters, and `EUAIACT_DATABASE_URL` set to the database's *Internal Database URL*.
+
+**Free-plan limits:**
+- The app sleeps after about 15 minutes without visitors, and the next visit takes about
+  a minute to wake it.
+- The free database expires after a trial period (check Render's current terms). Once it
+  has expired, delete the demo, or move to the paid setup below.
+- There are no free scheduled jobs: use **Settings > Run refresh cycle now** in the app.
+- Never put real staff data into the demo.
+
+When you are happy with it, delete the demo resources in Render and follow the paid setup
+below. The resource names differ, so both setups can exist side by side.
+
 ## 1. Create the Blueprint
 
 1. Sign in at render.com with your GitHub account.

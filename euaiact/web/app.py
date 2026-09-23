@@ -54,6 +54,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         with Session() as s:
             content.sync_from_disk(s, settings.content_dir, only_new=True)
             s.commit()
+            if settings.demo:
+                from ..demo import seed_demo
+
+                seed_demo(s)
+                s.commit()
         yield
 
     app = FastAPI(title="EU AI Act - Article 4 AI Literacy", lifespan=lifespan)
@@ -78,7 +83,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         STAFF_ROLES=STAFF_ROLES, RISK_CLASSES=RISK_CLASSES, ORG_ROLES=ORG_ROLES, TECH_LEVELS=TECH_LEVELS,
         EXPERIENCE_LEVELS=EXPERIENCE_LEVELS, MEASURE_TYPES=MEASURE_TYPES, APP_USER_ROLES=APP_USER_ROLES,
         DEPTH_LABELS=DEPTH_LABELS, APP_ONBOARDING=APP_ONBOARDING,
-        LEGAL_DATES_UNVERIFIED=len(unverified(milestones)), csrf=csrf_input,
+        LEGAL_DATES_UNVERIFIED=len(unverified(milestones)), csrf=csrf_input, DEMO=settings.demo,
     )
     templates.env.filters["md"] = content.render
     app.state.templates = templates

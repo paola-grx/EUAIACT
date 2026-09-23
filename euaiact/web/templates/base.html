@@ -20,6 +20,9 @@
   {% endif %}
 </div></header>
 <main>
+{% if DEMO %}
+<div class="notice bad small"><strong>Demo instance.</strong> All people and systems are fictional sample data. Do not enter real personal data: this demo can be reset or deleted at any time.</div>
+{% endif %}
 {% if user and LEGAL_DATES_UNVERIFIED %}
 <div class="notice warn small">{{ LEGAL_DATES_UNVERIFIED }} legal date(s) in the configuration are not yet verified against the Official Journal. <a href="/legal-dates">Review legal dates</a>.</div>
 {% endif %}
