@@ -54,6 +54,9 @@ python -m euaiact.cli check-legal-dates --strict   # release gate: exit 1 while 
 
 ## Production deployment
 
+**Free demo, no payment card:** Hugging Face Spaces with fictional sample data. See
+[docs/deploy-huggingface.md](docs/deploy-huggingface.md).
+
 **Render (managed hosting):** `render.yaml` sets up the web app, PostgreSQL and the daily
 job in Render's Frankfurt region. See [docs/deploy-render.md](docs/deploy-render.md).
 

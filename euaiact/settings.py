@@ -1,6 +1,7 @@
 """Runtime settings, read from environment variables."""
 
 import os
+import secrets
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -66,22 +67,38 @@ def normalise_database_url(url: str) -> str:
 
 
 def _base_url() -> str:
-    # RENDER_EXTERNAL_URL is set by Render on web services (https://<name>.onrender.com).
-    url = os.environ.get("EUAIACT_BASE_URL") or os.environ.get("RENDER_EXTERNAL_URL") or "http://localhost:8000"
+    url = (
+        os.environ.get("EUAIACT_BASE_URL")
+        # Set by Render on web services (https://<name>.onrender.com).
+        or os.environ.get("RENDER_EXTERNAL_URL")
+        # Set by Hugging Face Spaces (<user>-<space>.hf.space, without scheme).
+        or (f"https://{os.environ['SPACE_HOST']}" if os.environ.get("SPACE_HOST") else "")
+        or "http://localhost:8000"
+    )
     return url.rstrip("/")
 
 
+def _secret_key(demo: bool) -> str:
+    key = os.environ.get("EUAIACT_SECRET_KEY", "")
+    if key:
+        return key
+    # A demo without a configured secret gets a random one per start: sessions end on restart,
+    # which is acceptable for a demo and better than a publicly known key.
+    return secrets.token_urlsafe(32) if demo else DEV_SECRET
+
+
 def load_settings() -> Settings:
+    demo = os.environ.get("EUAIACT_DEMO", "") == "1"
     settings = Settings(
         database_url=normalise_database_url(
             os.environ.get("EUAIACT_DATABASE_URL", f"sqlite:///{ROOT / 'var' / 'euaiact.db'}")),
-        secret_key=os.environ.get("EUAIACT_SECRET_KEY", DEV_SECRET),
+        secret_key=_secret_key(demo),
         base_url=_base_url(),
         content_dir=Path(os.environ.get("EUAIACT_CONTENT_DIR", ROOT / "content")),
         legal_dates_file=Path(os.environ.get("EUAIACT_LEGAL_DATES", ROOT / "config" / "legal_dates.yaml")),
         production=os.environ.get("EUAIACT_ENV", "development") == "production",
         smtp=_smtp_from_env(),
-        demo=os.environ.get("EUAIACT_DEMO", "") == "1",
+        demo=demo,
     )
     validate(settings)
     return settings
