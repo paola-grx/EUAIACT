@@ -1,0 +1,13 @@
+{% extends "base.html" %}{% block title %}Training content{% endblock %}
+{% block content %}
+<h1>Training content</h1>
+<p class="muted small">Editable Markdown modules. Every edit creates a new immutable version; the evidence register records which version each person completed. Mark an edit as <em>material</em> to trigger re-training.</p>
+<div class="table-wrap"><table>
+<tr><th>Module</th><th>Audience</th><th>Current version</th><th>Published</th><th>Knowledge check</th></tr>
+{% for m in modules %}
+<tr><td><a href="/content/{{ m.key }}">{{ m.title }}</a><div class="small muted mono">{{ m.key }}</div></td><td>{{ m.audience }}</td>
+<td>v{{ m.current.version }}{% if m.current.material_change %} <span class="badge medium">material</span>{% endif %}</td>
+<td class="small">{{ m.current.published_at.strftime('%Y-%m-%d') }} · {{ m.current.published_by }}</td><td>{{ m.current.quiz | length }} questions</td></tr>
+{% endfor %}
+</table></div>
+{% endblock %}

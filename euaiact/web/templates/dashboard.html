@@ -1,0 +1,44 @@
+{% extends "base.html" %}{% block title %}Dashboard{% endblock %}
+{% block content %}
+<h1>Article 4 dashboard · {{ org.org_name }}</h1>
+{% if org.sme_mode %}<div class="notice small">SME mode is on: paths follow the minimum viable programme. <a href="/sme">SME kit</a></div>{% endif %}
+<div class="grid">
+  <div class="panel stat"><div class="n">{{ d.staff_percent }}%</div><div class="l">of {{ d.people_total }} people have all required modules current</div>
+    <div class="bar"><span style="width: {{ d.staff_percent }}%"></span></div></div>
+  <div class="panel stat"><div class="n">{{ d.overdue|length }}</div><div class="l">overdue training items</div></div>
+  <div class="panel stat"><div class="n">{{ d.pending }}</div><div class="l">open (not yet due) items</div></div>
+  <div class="panel stat"><div class="n">{{ d.evidence_entries }}</div><div class="l">evidence entries · integrity
+    {% if d.chain_ok %}<span class="badge ok">verified</span>{% else %}<span class="badge bad">broken</span>{% endif %}</div></div>
+</div>
+
+<h2>Coverage per AI system</h2>
+<div class="table-wrap"><table>
+<tr><th>AI system</th><th>Risk class</th><th>People linked</th><th>Training current</th><th style="width:30%">Coverage</th></tr>
+{% for c in d.systems %}
+<tr><td><a href="/systems/{{ c.system.id }}">{{ c.system.name }}</a></td>
+<td><span class="badge">{{ c.system.risk_class }}</span>{% if not c.system.risk_class_confirmed %} <span class="badge medium">unconfirmed</span>{% endif %}</td>
+<td>{{ c.people }}</td><td>{{ c.covered }}</td>
+<td><div class="row" style="align-items:center"><div class="bar"><span style="width: {{ c.percent }}%"></span></div><span class="small" style="flex:0 0 40px">{{ c.percent }}%</span></div></td></tr>
+{% else %}<tr><td colspan="5" class="muted">No AI systems yet. <a href="/systems">Add the AI systems in use</a>, including chatbots and copilots.</td></tr>{% endfor %}
+</table></div>
+
+<h2>Gaps</h2>
+{% if d.gaps %}
+<div class="table-wrap"><table>
+{% for g in d.gaps %}<tr><td style="width:90px"><span class="badge {{ g.severity }}">{{ g.severity }}</span></td><td>{% if g.link %}<a href="{{ g.link }}">{{ g.message }}</a>{% else %}{{ g.message }}{% endif %}</td></tr>{% endfor %}
+</table></div>
+{% else %}<div class="notice ok">No gaps detected by the automated checks. This does not mean the programme is complete; see <a href="/guidance/automation-limits">limits</a>.</div>{% endif %}
+
+<h2>Overdue trainings</h2>
+<div class="table-wrap"><table>
+<tr><th>Person</th><th>Module</th><th>Due</th><th>Trigger</th></tr>
+{% for r in d.overdue %}<tr><td><a href="/people/{{ r.person.id }}">{{ r.person.name }}</a></td><td>{{ r.module_key }}</td><td>{{ r.due_on }}</td><td>{{ r.trigger.replace('_',' ') }}</td></tr>
+{% else %}<tr><td colspan="4" class="muted">None.</td></tr>{% endfor %}
+</table></div>
+
+<h2>Organisation statement</h2>
+<div class="panel"><form method="post" action="/documents/statement" class="row" style="align-items:end">{{ csrf(request) }}
+  <div><label>Period start (optional)</label><input type="date" name="period_start"></div>
+  <div><button type="submit">Issue Article 4 Measures Statement (PDF)</button></div>
+</form><p class="small muted">Documents measures taken to support AI literacy. It does not certify competence or compliance.</p></div>
+{% endblock %}

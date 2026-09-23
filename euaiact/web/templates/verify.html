@@ -1,0 +1,22 @@
+{% extends "base.html" %}{% block title %}Verify document{% endblock %}
+{% block content %}
+<h1>Document verification</h1>
+{% if not doc %}
+<div class="notice bad">No document with ID <span class="mono">{{ doc_id }}</span> was issued by this system.</div>
+{% else %}
+{% if result.snapshot_intact and result.evidence_anchor_intact %}
+<div class="notice ok"><strong>Genuine.</strong> Document <span class="mono">{{ doc.doc_id }}</span> was issued by this system and its recorded content is unchanged.</div>
+{% else %}
+<div class="notice bad"><strong>Integrity problem.</strong> The stored record for this document no longer matches its hash or its anchor in the evidence register.</div>
+{% endif %}
+<div class="panel">
+<p><strong>{{ doc.snapshot.title }}</strong><br>
+{{ doc.snapshot.organisation }}<br>
+{% if doc.kind == 'training_record' %}Person: {{ doc.snapshot.person.name }}<br>Training measures recorded: {{ doc.snapshot.trainings_completed | length }}<br>{% endif %}
+Issued: {{ doc.snapshot.issued_on }}</p>
+<p class="small muted">Snapshot SHA-256: <span class="mono">{{ doc.snapshot_sha256 }}</span><br>
+Evidence register anchor: #{{ doc.evidence_head_seq }} <span class="mono">{{ doc.evidence_head_hash }}</span></p>
+</div>
+{% endif %}
+<p class="small muted">{{ disclaimer }}</p>
+{% endblock %}

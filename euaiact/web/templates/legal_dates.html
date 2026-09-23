@@ -1,0 +1,14 @@
+{% extends "base.html" %}{% block title %}Legal dates{% endblock %}
+{% block content %}
+<h1>AI Act application dates</h1>
+<p class="muted small">Source: <code>config/legal_dates.yaml</code>. Entries must be verified against the Official Journal before release.</p>
+<div class="table-wrap"><table>
+<tr><th>Applies from</th><th>Milestone</th><th>Articles</th><th>Status today</th><th>Verified</th></tr>
+{% for m in milestones %}
+<tr><td>{{ m.applies_from.strftime('%d %b %Y') }}</td><td>{{ m.label }}{% if m.notes %}<div class="small muted">{{ m.notes }}</div>{% endif %}<div class="small muted">{{ m.source }}</div></td>
+<td class="small">{{ m.articles | join(', ') }}</td>
+<td><span class="badge {{ 'ok' if m.status(today) == 'applies' else 'low' }}">{{ m.status(today) }}</span></td>
+<td>{% if m.verified and m.verified_by %}<span class="badge ok">{{ m.verified_by }}, {{ m.verified_on }}</span>{% else %}<span class="badge medium">to verify</span>{% endif %}</td></tr>
+{% endfor %}
+</table></div>
+{% endblock %}

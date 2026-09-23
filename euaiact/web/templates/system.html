@@ -1,0 +1,39 @@
+{% extends "base.html" %}{% block title %}{{ system.name }}{% endblock %}
+{% block content %}
+<h1>{{ system.name }}</h1>
+<p class="muted">{{ ORG_ROLES[system.org_role] }} · {{ RISK_CLASSES[system.risk_class] }}
+{% if system.risk_class_confirmed %}<span class="badge ok">confirmed</span>{% else %}<span class="badge medium">unconfirmed</span>{% endif %}</p>
+{% if coverage %}<div class="panel stat"><div class="n">{{ coverage.percent }}%</div><div class="l">{{ coverage.covered }} of {{ coverage.people }} linked people have current training for this system</div></div>{% endif %}
+
+<h2>People and roles</h2>
+<div class="table-wrap"><table>
+<tr><th>Person</th><th>Role</th><th></th></tr>
+{% for a in system.assignments %}<tr><td><a href="/people/{{ a.person.id }}">{{ a.person.name }}</a></td><td>{{ STAFF_ROLES[a.role] }}</td>
+<td>{% if user.role == 'admin' %}<form class="inline" method="post" action="/assignments/{{ a.id }}/delete">{{ csrf(request) }}<input type="hidden" name="back" value="/systems/{{ system.id }}"><button class="link" type="submit">Remove</button></form>{% endif %}</td></tr>
+{% else %}<tr><td colspan="3" class="muted">Nobody linked yet.</td></tr>{% endfor %}
+</table></div>
+{% if user.role == 'admin' and people %}
+<form method="post" action="/systems/{{ system.id }}/assign" class="row panel" style="align-items:end;margin-top:10px">{{ csrf(request) }}
+  <div><label>Person</label><select name="person_id">{% for p in people %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}</select></div>
+  <div><label>Role</label><select name="role">{% for k, v in STAFF_ROLES.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></div>
+  <div><button type="submit">Link person</button></div>
+</form>
+{% endif %}
+
+{% if user.role == 'admin' %}
+<h2>Edit</h2>
+<div class="panel"><form method="post" action="/systems/{{ system.id }}">{{ csrf(request) }}
+<div class="row">
+  <div><label>Name</label><input type="text" name="name" value="{{ system.name }}" required></div>
+  <div><label>Vendor</label><input type="text" name="vendor" value="{{ system.vendor }}"></div>
+  <div><label>Our role</label><select name="org_role">{% for k, v in ORG_ROLES.items() %}<option value="{{ k }}" {% if system.org_role == k %}selected{% endif %}>{{ v }}</option>{% endfor %}</select></div>
+  <div><label>Risk class</label><select name="risk_class">{% for k, v in RISK_CLASSES.items() %}<option value="{{ k }}" {% if system.risk_class == k %}selected{% endif %}>{{ v }}</option>{% endfor %}</select></div>
+</div>
+<label>Intended purpose / description</label><textarea name="description">{{ system.description }}</textarea>
+<label>Affected persons</label><input type="text" name="affected_persons" value="{{ system.affected_persons | join(', ') }}">
+<label class="check"><input type="checkbox" name="generative" value="yes" {% if system.generative %}checked{% endif %}> Generates content (Art. 50 relevant)</label>
+<label class="check"><input type="checkbox" name="risk_class_confirmed" value="yes" {% if system.risk_class_confirmed %}checked{% endif %}> I have reviewed the risk class against the system's actual use and confirm it</label>
+<p><button type="submit">Save</button></p>
+</form></div>
+{% else %}<div class="panel content-body small">{{ system.description }}<br>Affected persons: {{ system.affected_persons | join(', ') or '-' }}</div>{% endif %}
+{% endblock %}

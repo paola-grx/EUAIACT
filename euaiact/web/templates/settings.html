@@ -1,0 +1,51 @@
+{% extends "base.html" %}{% block title %}Settings{% endblock %}
+{% block content %}
+<h1>Programme settings</h1>
+{% if error %}<div class="notice bad">{{ error }}</div>{% endif %}
+<div class="panel"><form method="post" action="/settings">{{ csrf(request) }}
+<div class="row">
+  <div><label>Organisation name</label><input type="text" name="org_name" value="{{ org.org_name }}" required {% if user.role != 'admin' %}disabled{% endif %}></div>
+  <div><label>Refresh interval (months)</label><input type="number" min="1" max="60" name="refresh_interval_months" value="{{ org.refresh_interval_months }}" {% if user.role != 'admin' %}disabled{% endif %}></div>
+  <div><label>Reminder lead time (days)</label><input type="number" min="0" max="180" name="reminder_lead_days" value="{{ org.reminder_lead_days }}" {% if user.role != 'admin' %}disabled{% endif %}></div>
+  <div><label>Learning links valid for (days, 0 = no expiry)</label><input type="number" min="0" max="730" name="learn_link_valid_days" value="{{ org.learn_link_valid_days }}" {% if user.role != 'admin' %}disabled{% endif %}></div>
+</div>
+<label class="check"><input type="checkbox" name="sme_mode" value="yes" {% if org.sme_mode %}checked{% endif %} {% if user.role != 'admin' %}disabled{% endif %}> SME mode: use the minimum viable programme (SME essentials plus only the role modules a system requires)</label>
+{% if user.role == 'admin' %}<p><button type="submit">Save settings</button></p>{% endif %}
+</form></div>
+
+<h2>Refresh cycle and reminders</h2>
+<div class="panel">
+<p class="small muted">Run daily from a scheduler with <span class="mono">python -m euaiact.cli refresh</span>, or run it now. It creates refresh assignments when the interval is due and queues reminders for items due soon or overdue.</p>
+{% if smtp %}<p class="small">E-mail delivery: <span class="badge ok">on</span> via {{ smtp.host }}:{{ smtp.port }} ({{ smtp.security }}), from {{ smtp.sender }}</p>
+{% else %}<p class="small">E-mail delivery: <span class="badge medium">off</span> Set <span class="mono">EUAIACT_SMTP_HOST</span> and <span class="mono">EUAIACT_SMTP_FROM</span> to send reminders by e-mail. Until then reminders stay in the outbox below.</p>{% endif %}
+{% if stats %}<div class="notice ok small">Refresh run: {{ stats.periodic_created }} refresh assignment(s) created, {{ stats.reminders_queued }} reminder(s) queued.</div>{% endif %}
+{% if delivery %}<div class="notice {{ 'bad' if delivery.failed else 'ok' }} small">E-mail: {{ delivery.sent }} sent, {{ delivery.failed }} failed, {{ delivery.skipped_no_email }} skipped (no e-mail address), {{ delivery.cancelled }} cancelled (already completed).
+{% for e in delivery.errors[:5] %}<br>{{ e }}{% endfor %}</div>{% endif %}
+{% if user.role == 'admin' %}<div class="row" style="flex:0 0 auto">
+<form method="post" action="/refresh/run">{{ csrf(request) }}<button type="submit" class="secondary">Run refresh cycle now</button></form>
+{% if smtp %}<form method="post" action="/reminders/send">{{ csrf(request) }}<button type="submit" class="secondary">Send queued reminders</button></form>{% endif %}
+</div>{% endif %}
+<h3 class="small">Reminder outbox (latest 50)</h3>
+<div class="table-wrap"><table>
+<tr><th>Queued</th><th>Person</th><th>Module</th><th>Kind</th><th>Delivery</th></tr>
+{% for r in reminders %}<tr><td class="small">{{ r.created_at.strftime('%Y-%m-%d') }}</td><td>{{ r.person.name }}{% if not r.person.email %} <span class="badge medium">no e-mail</span>{% endif %}</td>
+<td class="small">{{ r.requirement.module_key }}</td><td><span class="badge {{ 'overdue' if r.kind == 'overdue' else 'pending' }}">{{ r.kind.replace('_',' ') }}</span></td>
+<td class="small">{% if r.sent_at %}<span class="badge ok">sent {{ r.sent_at.strftime('%Y-%m-%d %H:%M') }}</span>{% elif r.cancelled_at %}<span class="badge low">cancelled</span>{% elif r.attempts %}<span class="badge bad">failed {{ r.attempts }}×</span> <span class="muted">{{ r.last_error }}</span>{% else %}queued{% endif %}</td></tr>
+{% else %}<tr><td colspan="5" class="muted">No reminders queued.</td></tr>{% endfor %}
+</table></div></div>
+
+<h2>App users</h2>
+<div class="table-wrap"><table>
+<tr><th>Name</th><th>Role</th><th>App onboarding (Art. 4)</th></tr>
+{% for u in users %}<tr><td>{{ u.name }} <span class="small muted">{{ u.email }}</span></td><td>{{ APP_USER_ROLES[u.role] }}</td>
+<td>{% if u.onboarding_completed_at %}<span class="badge ok">v{{ u.onboarding_content_version }} · {{ u.onboarding_completed_at.strftime('%Y-%m-%d') }}</span>{% else %}<span class="badge medium">not completed</span>{% endif %}</td></tr>{% endfor %}
+</table></div>
+{% if user.role == 'admin' %}
+<div class="panel" style="margin-top:10px"><form method="post" action="/users">{{ csrf(request) }}<div class="row">
+  <div><label>Name</label><input type="text" name="name" required></div>
+  <div><label>E-mail</label><input type="email" name="email" required></div>
+  <div><label>Role</label><select name="role">{% for k, v in APP_USER_ROLES.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></div>
+  <div><label>Initial password (min. 10)</label><input type="password" name="password" minlength="10" required></div>
+</div><p><button type="submit">Add app user</button> <span class="small muted">New users must complete the app onboarding before they can use the app.</span></p></form></div>
+{% endif %}
+{% endblock %}

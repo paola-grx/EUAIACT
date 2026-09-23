@@ -1,0 +1,101 @@
+{% extends "base.html" %}{% block title %}{{ person.name }}{% endblock %}
+{% block content %}
+<h1>{{ person.name }}</h1>
+<p class="muted">{{ person.department or 'No department' }} · {{ person.engagement }}{% if person.email %} · {{ person.email }}{% endif %}{% if not person.active %} · <strong>inactive</strong>{% endif %}</p>
+
+<div class="panel small">
+{% if link_status == 'sent' %}<div class="notice ok">Learning link e-mailed to {{ person.email }}.</div>
+{% elif link_status == 'reissued' %}<div class="notice ok">New learning link issued. The previous link no longer works.</div>
+{% elif link_status == 'error' %}<div class="notice bad">The e-mail could not be sent. Check the mail server settings.</div>{% endif %}
+Personal learning link for {{ person.name }} (no account needed; treat it like a password):<br>
+{% if link_valid %}<span class="mono">{{ learn_url }}</span>{% else %}<span class="badge bad">expired or inactive</span>{% endif %}
+<div class="muted">Issued {{ person.learn_token_issued_at.strftime('%Y-%m-%d') }}{% if link_expires %} · expires {{ link_expires.strftime('%Y-%m-%d') }}{% else %} · no expiry{% endif %}.
+Completions made through the link are recorded as self-attested.</div>
+{% if user.role == 'admin' %}<div class="row" style="margin-top:8px">
+{% if smtp_enabled and person.email %}<form method="post" action="/people/{{ person.id }}/learn-link">{{ csrf(request) }}<input type="hidden" name="action" value="email"><button type="submit" class="secondary">E-mail link to {{ person.email }}</button></form>{% endif %}
+<form method="post" action="/people/{{ person.id }}/learn-link">{{ csrf(request) }}<input type="hidden" name="action" value="regenerate"><button type="submit" class="secondary">Issue new link (revokes current)</button></form>
+</div>{% endif %}
+</div>
+
+<h2>AI systems and roles</h2>
+<div class="table-wrap"><table>
+<tr><th>AI system</th><th>Role</th><th>Risk class</th><th></th></tr>
+{% for a in person.assignments %}
+<tr><td><a href="/systems/{{ a.system.id }}">{{ a.system.name }}</a></td><td>{{ STAFF_ROLES[a.role] }}</td><td><span class="badge">{{ a.system.risk_class }}</span></td>
+<td>{% if user.role == 'admin' %}<form class="inline" method="post" action="/assignments/{{ a.id }}/delete">{{ csrf(request) }}<button class="link" type="submit">Remove</button></form>{% endif %}</td></tr>
+{% else %}<tr><td colspan="4" class="muted">Not linked to any AI system.</td></tr>{% endfor %}
+</table></div>
+{% if user.role == 'admin' and systems %}
+<form method="post" action="/people/{{ person.id }}/assign" class="row panel" style="align-items:end;margin-top:10px">{{ csrf(request) }}
+  <div><label>AI system</label><select name="system_id">{% for s in systems %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}</select></div>
+  <div><label>Role</label><select name="role">{% for k, v in STAFF_ROLES.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></div>
+  <div><button type="submit">Link system</button></div>
+</form>
+<p class="small muted">Linking a new system or changing a role triggers re-training for the affected modules automatically.</p>
+{% endif %}
+
+<h2>Literacy needs assessment</h2>
+{% set a = person.latest_assessment %}
+{% if a %}<div class="panel small">
+  <strong>Technical background:</strong> {{ TECH_LEVELS[a.technical_background] }} · <strong>AI experience:</strong> {{ EXPERIENCE_LEVELS[a.ai_experience] }}
+  {% if a.education %}<br><strong>Education:</strong> {{ a.education }}{% endif %}
+  {% if a.prior_training %}<br><strong>Prior training:</strong> {{ a.prior_training }}{% endif %}
+  {% if a.context_notes %}<br><strong>Context:</strong> {{ a.context_notes }}{% endif %}
+  <div class="muted">Recorded {{ a.created_at.strftime('%Y-%m-%d') }} by {{ a.created_by }}</div>
+</div>{% else %}<div class="notice warn">No assessment recorded yet. The learning path cannot reflect this person's background.</div>{% endif %}
+{% if user.role == 'admin' %}
+<details class="panel"><summary>{{ 'Update' if a else 'Record' }} assessment</summary>
+<form method="post" action="/people/{{ person.id }}/assessment">{{ csrf(request) }}
+<div class="row">
+  <div><label>Technical background</label><select name="technical_background">{% for k, v in TECH_LEVELS.items() %}<option value="{{ k }}" {% if a and a.technical_background == k %}selected{% endif %}>{{ v }}</option>{% endfor %}</select></div>
+  <div><label>Experience with AI</label><select name="ai_experience">{% for k, v in EXPERIENCE_LEVELS.items() %}<option value="{{ k }}" {% if a and a.ai_experience == k %}selected{% endif %}>{{ v }}</option>{% endfor %}</select></div>
+</div>
+<label>Education (optional)</label><input type="text" name="education" value="{{ a.education if a else '' }}">
+<label>Prior AI training (optional)</label><input type="text" name="prior_training" value="{{ a.prior_training if a else '' }}">
+<label>Context of use / notes (optional)</label><textarea name="context_notes">{{ a.context_notes if a else '' }}</textarea>
+<p><button type="submit">Save assessment</button></p>
+</form></details>
+{% endif %}
+
+<h2>Tailored learning path</h2>
+<div class="panel small"><strong>Depth:</strong> {{ DEPTH_LABELS[path.depth] }} <span class="muted">({{ path.depth_reason }})</span>
+{% for n in path.notes %}<div class="muted">• {{ n }}</div>{% endfor %}
+<div class="muted">Generated automatically from role, systems and assessment. <a href="/guidance/automation-limits">How this works and its limits</a>.</div></div>
+<div class="table-wrap"><table>
+<tr><th>Module</th><th>Why</th><th>Status</th><th>Due / completed</th><th></th></tr>
+{% for item, module, status, req in items %}
+<tr><td><a href="/content/{{ item.module_key }}">{{ module.title if module else item.module_key }}</a>{% if item.optional %} <span class="badge low">optional</span>{% endif %}</td>
+<td class="small">{% for r in item.reasons %}{{ r }}{% if not loop.last %}<br>{% endif %}{% endfor %}</td>
+<td><span class="badge {{ status }}">{{ status.replace('_',' ') }}</span></td>
+<td class="small">{% if req %}{% if req.completed_at %}v{{ req.completed_version }} on {{ req.completed_at.strftime('%Y-%m-%d') }}{% else %}due {{ req.due_on }}{% endif %}{% endif %}</td>
+<td>{% if user.role == 'admin' and req and not req.completed_at %}
+<details><summary class="small">Record completion</summary>
+<form method="post" action="/people/{{ person.id }}/requirements/{{ req.id }}/complete">{{ csrf(request) }}
+  <label>Date</label><input type="date" name="completed_on" value="{{ today }}" max="{{ today }}" required>
+  <label>Delivery</label><select name="method"><option>classroom / live session</option><option>e-learning outside this app</option><option>self-paced in app</option><option>coaching / on-the-job</option></select>
+  <label>Note</label><input type="text" name="note">
+  <p><button type="submit">Save</button></p>
+</form></details>{% endif %}</td></tr>
+{% endfor %}
+</table></div>
+
+<h2>Training history</h2>
+<div class="table-wrap"><table>
+<tr><th>Module</th><th>Trigger</th><th>Assigned</th><th>Due</th><th>Completed</th><th>Reason</th></tr>
+{% for r in history %}
+<tr><td>{{ r.module_key }}</td><td>{{ r.trigger.replace('_',' ') }}</td><td>{{ r.assigned_at.strftime('%Y-%m-%d') }}</td><td>{{ r.due_on }}</td>
+<td>{% if r.completed_at %}v{{ r.completed_version }} · {{ r.completed_at.strftime('%Y-%m-%d') }}{% elif r.superseded %}<span class="muted">no longer required</span>{% else %}-{% endif %}</td><td class="small">{{ r.reason }}</td></tr>
+{% else %}<tr><td colspan="6" class="muted">None.</td></tr>{% endfor %}
+</table></div>
+
+<h2>AI Literacy Training Record</h2>
+<div class="panel">
+<form method="post" action="/people/{{ person.id }}/record">{{ csrf(request) }}<button type="submit">Issue training record (PDF)</button></form>
+<p class="small muted">Documents the measures taken for this person, with a unique ID and QR verification. It is not a certificate of competence or compliance.</p>
+{% for d in docs %}<div class="small"><a href="/documents/{{ d.doc_id }}.pdf">{{ d.doc_id }}</a> · {{ d.issued_at.strftime('%Y-%m-%d') }}</div>{% endfor %}
+</div>
+{% if user.role == 'admin' %}
+<form method="post" action="/people/{{ person.id }}/active">{{ csrf(request) }}<input type="hidden" name="active" value="{{ 'no' if person.active else 'yes' }}">
+<button class="secondary" type="submit">{{ 'Mark inactive (left organisation)' if person.active else 'Reactivate' }}</button></form>
+{% endif %}
+{% endblock %}

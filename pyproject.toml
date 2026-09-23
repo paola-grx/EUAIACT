@@ -1,0 +1,34 @@
+[project]
+name = "euaiact"
+version = "0.1.0"
+description = "EU AI Act compliance toolkit - Article 4 AI Literacy module"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.110",
+  "uvicorn>=0.29",
+  "sqlalchemy>=2.0",
+  "jinja2>=3.1",
+  "python-multipart>=0.0.9",
+  "reportlab>=4.0",
+  "pyyaml>=6.0",
+  "itsdangerous>=2.1",
+  "markdown>=3.5",
+]
+
+[project.optional-dependencies]
+postgres = ["psycopg[binary]>=3.1"]
+dev = ["pytest>=8", "httpx>=0.27", "aiosmtpd>=1.4", "psycopg[binary]>=3.1"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["euaiact*"]
+
+[tool.setuptools.package-data]
+euaiact = ["web/templates/*.html", "web/static/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

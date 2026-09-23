@@ -1,0 +1,15 @@
+{% extends "base.html" %}{% block title %}My AI learning path{% endblock %}
+{% block content %}
+<h1>Hello {{ person.name }}</h1>
+<p>{{ org.org_name }} supports everyone who works with AI in building the knowledge to use it well (Article 4 of the EU AI Act). Your path below is tailored to your role, the AI systems you work with and your background.</p>
+<div class="notice small">{{ DEPTH_LABELS[path.depth] }}.{% for n in path.notes %}<br>{{ n }}{% endfor %}<br>This path is generated automatically; if it does not match your work, tell your AI literacy coordinator.</div>
+<div class="table-wrap"><table>
+<tr><th>Module</th><th>Why you have it</th><th>Status</th><th></th></tr>
+{% for item, module, status, req in items %}
+<tr><td>{{ module.title if module else item.module_key }}{% if item.optional %} <span class="badge low">optional</span>{% endif %}</td>
+<td class="small">{% for r in item.reasons %}{{ r }}{% if not loop.last %}<br>{% endif %}{% endfor %}</td>
+<td><span class="badge {{ status }}">{{ status.replace('_',' ') }}</span>{% if req and not req.completed_at %}<div class="small muted">due {{ req.due_on }}</div>{% endif %}</td>
+<td>{% if module %}<a class="button {{ 'secondary' if status == 'current' else '' }}" href="/learn/{{ token }}/{{ item.module_key }}">{{ 'Review' if status == 'current' else 'Start' }}</a>{% endif %}</td></tr>
+{% endfor %}
+</table></div>
+{% endblock %}

@@ -1,0 +1,46 @@
+{% extends "base.html" %}{% block title %}AI systems{% endblock %}
+{% block content %}
+<h1>AI system inventory</h1>
+<p class="muted small">Include every AI system the organisation provides or deploys, including general chatbots and copilots: Art. 4 applies regardless of risk class.</p>
+<div class="table-wrap"><table>
+<tr><th>AI system</th><th>Our role</th><th>Risk class</th><th>Generative</th><th>Affected persons</th><th>People</th></tr>
+{% for s in systems %}
+<tr><td><a href="/systems/{{ s.id }}">{{ s.name }}</a><div class="small muted">{{ s.vendor }}</div></td><td>{{ ORG_ROLES[s.org_role] }}</td>
+<td><span class="badge">{{ s.risk_class }}</span>{% if not s.risk_class_confirmed %} <span class="badge medium">unconfirmed</span>{% endif %}</td>
+<td>{{ 'yes' if s.generative else 'no' }}</td><td class="small">{{ s.affected_persons | join(', ') }}</td><td>{{ s.assignments | map(attribute='person_id') | unique | list | length }}</td></tr>
+{% else %}<tr><td colspan="6" class="muted">No AI systems yet.</td></tr>{% endfor %}
+</table></div>
+
+{% if user.role == 'admin' %}
+<h2>Add AI system</h2>
+<details class="panel" {% if suggestion %}open{% endif %}><summary>Step 1 (optional): get a suggested risk class</summary>
+<div class="notice warn small">Screening aid only. It does not assess Art. 6(3) exceptions or Art. 5 prohibitions, and a person must confirm the result. <a href="/guidance/automation-limits">Limits</a></div>
+<form method="post" action="/systems/classify">{{ csrf(request) }}
+<label>Is it used in any of these areas? (Annex III)</label>
+{% for k, v in areas.items() %}<label class="check"><input type="checkbox" name="annex_iii" value="{{ k }}"> {{ v }}</label>{% endfor %}
+<label class="check"><input type="checkbox" name="annex_i" value="yes"> Safety component of a product covered by Annex I legislation (machinery, medical devices, toys, ...)</label>
+<label class="check"><input type="checkbox" name="interacts" value="yes"> Interacts directly with people (e.g. chatbot)</label>
+<label class="check"><input type="checkbox" name="generates" value="yes"> Generates text, images, audio or video</label>
+<label class="check"><input type="checkbox" name="general_purpose" value="yes"> General-purpose model or assistant</label>
+<p><button class="secondary" type="submit">Suggest risk class</button></p>
+</form>
+{% if suggestion %}
+<div class="notice"><strong>Suggested: {{ RISK_CLASSES[suggestion.risk_class] }}</strong>
+<ul class="small">{% for r in suggestion.rationale %}<li>{{ r }}</li>{% endfor %}</ul>
+<div class="small muted">{% for c in suggestion.caveats %}<div>⚠ {{ c }}</div>{% endfor %}</div></div>
+{% endif %}
+</details>
+<div class="panel"><form method="post" action="/systems">{{ csrf(request) }}
+<div class="row">
+  <div><label>Name</label><input type="text" name="name" required></div>
+  <div><label>Vendor</label><input type="text" name="vendor"></div>
+  <div><label>Our role</label><select name="org_role">{% for k, v in ORG_ROLES.items() %}<option value="{{ k }}" {% if k == 'deployer' %}selected{% endif %}>{{ v }}</option>{% endfor %}</select></div>
+  <div><label>Risk class</label><select name="risk_class">{% for k, v in RISK_CLASSES.items() %}<option value="{{ k }}" {% if suggestion and suggestion.risk_class == k %}selected{% endif %}>{{ v }}</option>{% endfor %}</select></div>
+</div>
+<label>Intended purpose / description</label><textarea name="description"></textarea>
+<label>Affected persons (comma-separated, e.g. customers, job candidates, patients)</label><input type="text" name="affected_persons">
+<label class="check"><input type="checkbox" name="generative" value="yes" {% if suggestion and suggestion.generative %}checked{% endif %}> Generates content (Art. 50 relevant)</label>
+<p><button type="submit">Add AI system</button></p>
+</form></div>
+{% endif %}
+{% endblock %}

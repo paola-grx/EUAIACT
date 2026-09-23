@@ -1,0 +1,30 @@
+{% macro quiz_form(action, quiz, results) %}
+<div class="quiz">
+{% if results %}
+  {% set right = results | selectattr('correct') | list | length %}
+  <div class="notice">You answered {{ right }} of {{ results|length }} as expected. This check is for learning reinforcement only: it is not a pass/fail test and your score is not recorded in the evidence register.</div>
+  {% for r in results %}
+  <fieldset><legend><strong>{{ r.question }}</strong></legend>
+    {% for opt in r.options %}
+      <div class="{% if loop.index0 == r.answer %}right{% elif loop.index0 == r.chosen %}wrong{% endif %}">
+        {% if loop.index0 == r.chosen %}&#9679;{% else %}&#9675;{% endif %} {{ opt }}{% if loop.index0 == r.answer %} ✓{% endif %}
+      </div>
+    {% endfor %}
+    {% if r.explain %}<p class="small muted">{{ r.explain }}</p>{% endif %}
+  </fieldset>
+  {% endfor %}
+{% elif quiz %}
+  <p class="small muted">Optional knowledge check to help you remember the key points. It is not a test you can fail.</p>
+  <form method="post" action="{{ action }}">{{ csrf(request) }}
+  {% for q in quiz %}{% set qi = loop.index0 %}
+  <fieldset><legend><strong>{{ q.question }}</strong></legend>
+    {% for opt in q.options %}
+      <label class="check"><input type="radio" name="q{{ qi }}" value="{{ loop.index0 }}"> {{ opt }}</label>
+    {% endfor %}
+  </fieldset>
+  {% endfor %}
+  <button type="submit" class="secondary">Check my answers</button>
+  </form>
+{% endif %}
+</div>
+{% endmacro %}

@@ -1,0 +1,13 @@
+{% extends "base.html" %}{% from "_quiz.html" import quiz_form with context %}{% block title %}{{ version.title }}{% endblock %}
+{% block content %}
+<p><a href="/learn/{{ token }}">← My learning path</a></p>
+<h1>{{ version.title }}</h1>
+<p class="muted small">Content version {{ version.version }}</p>
+<div class="panel content-body">{{ version.body_markdown | md | safe }}</div>
+{% if version.quiz %}<div class="panel"><h2 style="margin-top:0">Knowledge check</h2>{{ quiz_form('/learn/' ~ token ~ '/' ~ module.key ~ '/quiz', version.quiz, results) }}</div>{% endif %}
+{% if req and not req.completed_at %}
+<div class="panel"><form method="post" action="/learn/{{ token }}/{{ module.key }}/complete">{{ csrf(request) }}
+<label class="check"><input type="checkbox" name="confirm" value="yes" required> I have worked through this module (version {{ version.version }}).</label>
+<p><button type="submit">Mark as completed</button></p></form></div>
+{% elif req and req.completed_at %}<div class="notice ok">Completed version {{ req.completed_version }} on {{ req.completed_at.strftime('%Y-%m-%d') }}.</div>{% endif %}
+{% endblock %}

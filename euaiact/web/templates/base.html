@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}AI Literacy{% endblock %} · Art. 4</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="top"><div class="inner">
+  <a class="brand" href="{{ '/' if user else '#' }}">Art. 4 AI Literacy</a>
+  {% if user %}
+  <nav>
+    <a href="/">Dashboard</a><a href="/people">People</a><a href="/systems">AI systems</a>
+    <a href="/content">Content</a><a href="/evidence">Evidence register</a><a href="/documents">Records</a>
+    <a href="/sme">SME kit</a><a href="/settings">Settings</a><a href="/guidance/automation-limits">Guidance</a>
+  </nav>
+  <form method="post" action="/logout">{{ csrf(request) }}<span class="muted small">{{ user.name }} ({{ APP_USER_ROLES[user.role] }})</span>
+    <button class="link" type="submit">Log out</button></form>
+  {% endif %}
+</div></header>
+<main>
+{% if user and LEGAL_DATES_UNVERIFIED %}
+<div class="notice warn small">{{ LEGAL_DATES_UNVERIFIED }} legal date(s) in the configuration are not yet verified against the Official Journal. <a href="/legal-dates">Review legal dates</a>.</div>
+{% endif %}
+{% block content %}{% endblock %}
+</main>
+<footer>This tool helps document measures taken under Art. 4 of Regulation (EU) 2024/1689. It does not certify competence or legal compliance, and it is not legal advice. <a href="/guidance/automation-limits">Limits of automation</a>.</footer>
+</body>
+</html>
